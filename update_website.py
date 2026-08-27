@@ -28,10 +28,11 @@ PORTFOLIO = Path(__file__).parent / "index.html"
 ALLE_PROJEKTE = Path(__file__).parent / "alle-projekte.html"
 SITE_CONTENT = Path(__file__).parent / "inhalt.txt"
 PROJECT_FILE_NAME = "projekt.txt"
-# Einzige Quelle für den 3D-Viewer ist die Vorlage im eigenen Repo-Ordner
-# "3d-viewer-vorlage/" — von dort kopiert sync_project_3d_viewers() pro Projekt
-# eine eigene Kopie nach projekte/<name>/3d-viewer/.
-VIEWER_SOURCE = Path(__file__).parent / "3d-viewer-vorlage"
+# Einzige Quelle für den 3D-Viewer ist die Vorlage im Geschwister-Ordner
+# "portfolio vorlagen/3d-viewer/" (liegt außerhalb dieses Repos, nur zum Bauen
+# nötig) — von dort kopiert sync_project_3d_viewers() pro Projekt eine eigene,
+# in sich geschlossene Kopie nach projekte/<name>/3d-viewer/ (die landet im Repo).
+VIEWER_SOURCE = Path(__file__).parent.parent / "portfolio vorlagen" / "3d-viewer"
 
 
 def parse_kv_block(text: str) -> dict:
@@ -241,7 +242,9 @@ def parse_project_file(path: Path, fallback_title: str = "") -> dict:
     header_block, _, rest = text.partition("\n\n")
     kv = parse_kv_block(header_block)
 
-    section_pattern = re.compile(r'^##\s*(.+?)\s*$', re.MULTILINE)
+    # (?!#) sorgt dafür, dass ###-Überschriften (Teil der Beschreibung) NICHT
+    # mit "##"-Abschnitten (Bilder/Dateien/Links) verwechselt werden.
+    section_pattern = re.compile(r'^##(?!#)\s*(.+?)\s*$', re.MULTILINE)
     section_matches = list(section_pattern.finditer(rest))
     if section_matches:
         description = rest[:section_matches[0].start()].strip("\n")
@@ -640,11 +643,12 @@ def apply_viewer_content(viewer_dir: Path, titel: str, text: str) -> bool:
 
 def sync_project_3d_viewers() -> None:
     """Kopiert für jedes Projekt mit eigenem modelle/-Ordner eine 3D-Viewer-Kopie
-    (HTML + vendor/) aus der Vorlage in "3d-viewer-vorlage/" nach
-    projekte/<name>/3d-viewer/, bettet die Modelle aus dessen modelle/-Ordner ein
-    und setzt Überschrift/Text aus viewer_titel/viewer_text in der projekt.txt
-    (fällt auf title/tagline zurück, wenn die nicht gesetzt sind). So bekommt
-    jedes Projekt seinen eigenen, in sich geschlossenen Viewer."""
+    (HTML + vendor/) aus der Vorlage in "portfolio vorlagen/3d-viewer/" (liegt
+    außerhalb dieses Repos) nach projekte/<name>/3d-viewer/, bettet die Modelle
+    aus dessen modelle/-Ordner ein und setzt Überschrift/Text aus
+    viewer_titel/viewer_text in der projekt.txt (fällt auf title/tagline
+    zurück, wenn die nicht gesetzt sind). So bekommt jedes Projekt seinen
+    eigenen, in sich geschlossenen Viewer, der komplett im Repo landet."""
     if not VIEWER_SOURCE.exists():
         return
     for project_dir in list_projects():
@@ -655,9 +659,10 @@ def sync_project_3d_viewers() -> None:
         target.mkdir(exist_ok=True)
         viewer_html = (VIEWER_SOURCE / "3d-viewer.html").read_text(encoding="utf-8")
         # Rücklink anpassen: projekte/<name>/3d-viewer/ liegt drei Ebenen unter
-        # dem Repo-Root (anders als die Vorlage selbst, die nur eine Ebene tief liegt).
+        # dem Repo-Root (anders als die externe Vorlage, deren eigener Rücklink
+        # auf portfolio-repo/index.html zeigt).
         viewer_html = viewer_html.replace(
-            'href="../index.html"', 'href="../../../index.html"'
+            'href="../../portfolio-repo/index.html"', 'href="../../../index.html"'
         )
         (target / "3d-viewer.html").write_text(viewer_html, encoding="utf-8")
         vendor_target = target / "vendor"
@@ -929,7 +934,7 @@ def main() -> None:
                 kv.get("titel", "3D-Modell-Viewer"),
                 kv.get("text", ""),
             )
-        print(f"  ✓ 3d-viewer-vorlage/3d-viewer.html ({count} Modell(e) eingebettet)")
+        print(f"  ✓ portfolio vorlagen/3d-viewer/3d-viewer.html ({count} Modell(e) eingebettet)")
         sync_project_3d_viewers()
 
 
