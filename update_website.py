@@ -19,8 +19,13 @@ GitHub Pages automatisch als Startseite ausliefert).
 <h2 class="section-title">...</h2> gerendert.
 """
 import base64
+import json
+import math
 import re
 import shutil
+import urllib.error
+import urllib.parse
+import urllib.request
 from pathlib import Path
 
 BASE = Path(__file__).parent / "projekte"
@@ -28,6 +33,14 @@ PORTFOLIO = Path(__file__).parent / "index.html"
 ALLE_PROJEKTE = Path(__file__).parent / "alle-projekte.html"
 SITE_CONTENT = Path(__file__).parent / "inhalt.txt"
 PROJECT_FILE_NAME = "projekt.txt"
+
+# ===== Mehrsprachigkeit =====
+# Deutsch ist die Quellsprache (Standard). Beim Bauen wird zusätzlich in diese
+# Sprachen übersetzt (kostenlose MyMemory-API, kein Key nötig) und ALLES direkt
+# mit ins HTML eingebettet — ein Button schaltet clientseitig um, wie beim
+# Theme-Toggle. Kein Server, keine Internetverbindung für Besucher nötig.
+LANGUAGES = {"en": "English", "es": "Español", "fr": "Français"}
+TRANSLATION_CACHE_FILE = Path(__file__).parent / ".translations-cache.json"
 # Einzige Quelle für den 3D-Viewer ist die Vorlage im Geschwister-Ordner
 # "portfolio vorlagen/3d-viewer/" (liegt außerhalb dieses Repos, nur zum Bauen
 # nötig) — von dort kopiert sync_project_3d_viewers() pro Projekt eine eigene,
@@ -53,15 +66,99 @@ def load_site_content() -> dict:
     return parse_kv_block(SITE_CONTENT.read_text(encoding="utf-8"))
 
 
+def parse_checklist_section(text: str, header: str) -> list:
+    """Sucht '## {header}' in inhalt.txt und parst die Zeilen darunter als
+    Checkliste: '[x] Erledigt' / '[ ] Offen'. Endet an der nächsten '##'-Zeile
+    oder am Textende. Gibt [] zurück, wenn der Abschnitt fehlt."""
+    m = re.search(rf'^##\s*{re.escape(header)}\s*$', text, re.MULTILINE)
+    if not m:
+        return []
+    rest = text[m.end():]
+    next_section = re.search(r'^##(?!#)\s*.+$', rest, re.MULTILINE)
+    block = rest[:next_section.start()] if next_section else rest
+    steps = []
+    for line in block.splitlines():
+        line = line.strip()
+        cm = re.match(r'^\[([ xX])\]\s*(.+)$', line)
+        if cm:
+            steps.append({"done": cm.group(1).lower() == "x", "text": cm.group(2).strip()})
+    return steps
+
+
+def parse_timeline_section(text: str) -> list:
+    """Sucht '## Zeitstrahl' in inhalt.txt und parst die Zeilen darunter im
+    Format 'Titel | Jahr | Beschreibung | Projektordner (optional)'. Der
+    Zeitstrahl wird NICHT automatisch aus allen Projekten gebaut — nur Zeilen,
+    die hier explizit eingetragen sind, erscheinen. Der Link wird automatisch
+    gesucht: stimmt 'Projektordner' mit einem Ordner unter projekte/ überein,
+    wird automatisch dorthin verlinkt; sonst erscheint der Eintrag ohne Link."""
+    m = re.search(r'^##\s*Zeitstrahl\s*$', text, re.MULTILINE)
+    if not m:
+        return []
+    rest = text[m.end():]
+    entries = []
+    for line in rest.splitlines():
+        line = line.strip()
+        if not line or (line.startswith("#") and not line.startswith("##")):
+            continue  # Leerzeile oder Kommentar — weiter im Abschnitt.
+        if line.startswith("##") or "|" not in line:
+            # Nächster '##'-Abschnitt oder eine "fremde" Zeile (z.B. wieder
+            # normale schlüssel: wert-Felder) — Zeitstrahl-Abschnitt endet hier.
+            break
+        parts = [p.strip() for p in line.split("|")]
+        titel = parts[0] if len(parts) > 0 else ""
+        if not titel:
+            continue
+        jahr = parts[1] if len(parts) > 1 else ""
+        beschreibung = parts[2] if len(parts) > 2 else ""
+        projektordner = parts[3] if len(parts) > 3 else ""
+        href = ""
+        if projektordner and (BASE / projektordner).is_dir():
+            href = f"projekte/{projektordner}/index.html"
+        entries.append({"title": titel, "year": jahr, "short_description": beschreibung, "href": href})
+    return entries
+
+
+def fetch_github_repos(username: str, limit: int = 4) -> list:
+    """Holt die zuletzt aktualisierten öffentlichen Repos eines GitHub-Users
+    über die öffentliche API (kein Key nötig, generöses Rate-Limit für
+    gelegentliche Build-Läufe). Bei Netzwerkfehlern/Rate-Limit wird [] zurück-
+    gegeben — die Website baut dann einfach ohne diesen Abschnitt weiter."""
+    if not username:
+        return []
+    url = f"https://api.github.com/users/{urllib.parse.quote(username)}/repos?sort=pushed&direction=desc&per_page={limit}"
+    try:
+        req = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "portfolio-build-script"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as e:
+        print(f"    ! GitHub-Aktivität konnte nicht geladen werden: {e}")
+        return []
+    if not isinstance(data, list):
+        print(f"    ! GitHub-API-Antwort unerwartet (evtl. Rate-Limit erreicht).")
+        return []
+    return [
+        {
+            "name": r.get("name", ""),
+            "url": r.get("html_url", ""),
+            "description": r.get("description") or "",
+            "language": r.get("language") or "",
+            "stars": r.get("stargazers_count", 0),
+            "updated": (r.get("pushed_at") or "")[:10],
+        }
+        for r in data[:limit]
+    ]
+
+
 def render_footer_links_html(site: dict) -> str:
     """Kontakt-Links (GitHub/LinkedIn/Email aus inhalt.txt) für den Footer der Projektseiten."""
     parts = []
     if site.get("github"):
-        parts.append(f'<li><a href="{html_escape(site["github"])}" target="_blank" rel="noopener noreferrer">GitHub</a></li>')
+        parts.append(f'<li><a href="{html_escape(site["github"])}" target="_blank" rel="noopener noreferrer" data-i18n="github_label" data-i18n-default="GitHub">GitHub</a></li>')
     if site.get("linkedin"):
-        parts.append(f'<li><a href="{html_escape(site["linkedin"])}" target="_blank" rel="noopener noreferrer">LinkedIn</a></li>')
+        parts.append(f'<li><a href="{html_escape(site["linkedin"])}" target="_blank" rel="noopener noreferrer" data-i18n="linkedin_label" data-i18n-default="LinkedIn">LinkedIn</a></li>')
     if site.get("email"):
-        parts.append(f'<li><a href="mailto:{html_escape(site["email"])}">Email</a></li>')
+        parts.append(f'<li><a href="mailto:{html_escape(site["email"])}" data-i18n="email_label" data-i18n-default="Email">Email</a></li>')
     return ''.join(parts)
 
 
@@ -136,6 +233,92 @@ def html_escape(text: str) -> str:
         .replace('>', '&gt;')
         .replace('"', '&quot;')
         .replace("'", '&apos;'))
+
+
+_translation_cache = None
+
+
+def _load_translation_cache() -> dict:
+    global _translation_cache
+    if _translation_cache is None:
+        if TRANSLATION_CACHE_FILE.exists():
+            try:
+                _translation_cache = json.loads(TRANSLATION_CACHE_FILE.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                _translation_cache = {}
+        else:
+            _translation_cache = {}
+    return _translation_cache
+
+
+def save_translation_cache() -> None:
+    """Schreibt den Übersetzungs-Cache zurück auf die Platte (am Ende von main())."""
+    if _translation_cache is not None:
+        TRANSLATION_CACHE_FILE.write_text(
+            json.dumps(_translation_cache, ensure_ascii=False, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+
+
+def translate_text(text: str, target_lang: str) -> str:
+    """Übersetzt eine einzelne Zeile/einen Satz per MyMemory-API (kostenlos,
+    kein Key). Ergebnisse werden lokal gecacht — nur neuer/geänderter Text
+    verursacht einen echten API-Aufruf. Schlägt die Übersetzung fehl (Netzwerk,
+    Rate-Limit, leerer Text), wird der deutsche Originaltext zurückgegeben,
+    damit die Seite nie kaputtgeht."""
+    text = text.strip()
+    if not text:
+        return text
+    cache = _load_translation_cache()
+    key = f"{target_lang}:{text}"
+    if key in cache:
+        return cache[key]
+
+    translated = text
+    try:
+        params = urllib.parse.urlencode({"q": text[:490], "langpair": f"de|{target_lang}"})
+        url = f"https://api.mymemory.translated.net/get?{params}"
+        with urllib.request.urlopen(url, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        candidate = (data.get("responseData") or {}).get("translatedText", "").strip()
+        # MyMemory hängt bei Fuzzy-Treffern manchmal XLIFF-Markup an (<g id="1">…</g>,
+        # <bx id="2"/> usw.) — das ist kein echtes HTML, nur Tag-Reste, raus damit.
+        candidate = re.sub(r'</?g[^>]*>|<[a-z]{2}\s+id="\d+"\s*/>', '', candidate).strip()
+        if candidate and "MYMEMORY WARNING" not in candidate.upper():
+            translated = candidate
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as e:
+        print(f"    ! Übersetzung ({target_lang}) fehlgeschlagen, behalte Deutsch: {e}")
+
+    cache[key] = translated
+    return translated
+
+
+def translate_description(text: str, target_lang: str) -> str:
+    """Übersetzt einen mehrzeiligen Beschreibungstext zeilenweise, erhält dabei
+    ###-Überschriften, Listenpunkte ("- "/"* ") und Codeblöcke (```...```)
+    unangetastet in ihrer Struktur — nur der jeweilige Inhalt wird übersetzt."""
+    if not text:
+        return text
+    out = []
+    in_code = False
+    for line in text.split("\n"):
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            in_code = not in_code
+            out.append(line)
+            continue
+        if in_code or not stripped:
+            out.append(line)
+            continue
+        m = re.match(r'^(#{1,3}\s*)(.+)$', line)
+        if m:
+            out.append(m.group(1) + translate_text(m.group(2), target_lang))
+            continue
+        if line.startswith("- ") or line.startswith("* "):
+            out.append(line[:2] + translate_text(line[2:], target_lang))
+            continue
+        out.append(translate_text(line, target_lang))
+    return "\n".join(out)
 
 
 LINK_PATTERN = re.compile(r'\[([^\]]+)\]\(([^)]+)\)')
@@ -409,22 +592,26 @@ def render_links_html(meta: dict, project_dir: Path | None = None) -> str:
     parts = []
     if project_dir is not None and (project_dir / "details.html").exists():
         parts.append(
-            '<a class="btn btn--primary" href="details.html">Demo ansehen</a>'
+            '<a class="btn btn--primary" href="details.html" data-i18n="demo_button" '
+            'data-i18n-default="Demo ansehen">Demo ansehen</a>'
         )
     if links.get("repo"):
         parts.append(
             f'<a class="btn btn--ghost" href="{html_escape(links["repo"])}" '
-            f'target="_blank" rel="noopener noreferrer">Source</a>'
+            f'target="_blank" rel="noopener noreferrer" data-i18n="source_button" '
+            f'data-i18n-default="Source">Source</a>'
         )
     if links.get("live"):
         parts.append(
             f'<a class="btn btn--primary" href="{html_escape(links["live"])}" '
-            f'target="_blank" rel="noopener noreferrer">Live</a>'
+            f'target="_blank" rel="noopener noreferrer" data-i18n="live_button" '
+            f'data-i18n-default="Live">Live</a>'
         )
     if links.get("3d-viewer"):
         parts.append(
             f'<a class="btn btn--primary" href="{html_escape(links["3d-viewer"])}" '
-            f'target="_blank" rel="noopener noreferrer">3D-Ansicht</a>'
+            f'target="_blank" rel="noopener noreferrer" data-i18n="3d_button" '
+            f'data-i18n-default="3D-Ansicht">3D-Ansicht</a>'
         )
     for link in meta.get("custom_links", []) or []:
         style = ""
@@ -445,7 +632,22 @@ def build_project_index(project_dir: Path) -> str:
         return ""
 
     meta = load_project(project_dir)
-    body_html = parse_description(meta.get("description", ""))
+    raw_description = meta.get("description", "")
+    raw_tagline = meta.get("tagline", "")
+    body_html = parse_description(raw_description)
+
+    # Übersetzte Beschreibung + Tagline: je Sprache ein eigener, per JS
+    # umschaltbarer Block (siehe LANG_SWITCH_SCRIPT). Deutsch ist das Original
+    # und bleibt unverändert; en/es/fr kommen aus translate_description()/
+    # translate_text() (gecacht, kein erneuter API-Aufruf bei unverändertem Text).
+    body_i18n_html = f'<div data-i18n-lang="de">{body_html}</div>'
+    tagline_i18n_html = f'<p class="hero__title reveal" data-i18n-lang-el="de">{html_escape(raw_tagline)}</p>'
+    for lang in LANGUAGES:
+        translated_body = parse_description(translate_description(raw_description, lang))
+        body_i18n_html += f'<div data-i18n-lang="{lang}">{translated_body}</div>'
+        translated_tagline = html_escape(translate_text(raw_tagline, lang))
+        tagline_i18n_html += f'<p class="hero__title reveal" data-i18n-lang-el="{lang}">{translated_tagline}</p>'
+
     # Nur Bilder anzeigen, deren Datei auch wirklich im bilder/-Ordner liegt —
     # sonst blieben leere Slots mit Bildunterschrift für fehlende Dateien stehen.
     images = [
@@ -458,8 +660,8 @@ def build_project_index(project_dir: Path) -> str:
     if images:
         gallery_section = (
             '\n      <section class="section--tight container reveal" style="margin-top: 32px;">\n'
-            '        <span class="eyebrow">Einblicke</span>\n'
-            '        <h2 class="section__title">Bilder</h2>\n'
+            '        <span class="eyebrow" data-i18n="insights_eyebrow" data-i18n-default="Einblicke">Einblicke</span>\n'
+            '        <h2 class="section__title" data-i18n="images_heading" data-i18n-default="Bilder">Bilder</h2>\n'
             f'        <ul class="gallery" id="gallery">{gallery_html}</ul>\n'
             '      </section>'
         )
@@ -473,8 +675,8 @@ def build_project_index(project_dir: Path) -> str:
     if downloadable_files:
         files_section = (
             '\n      <section class="section--tight container reveal" style="margin-top: 32px;">\n'
-            '        <span class="eyebrow">Downloads</span>\n'
-            '        <h2 class="section__title">Dateien</h2>\n'
+            '        <span class="eyebrow" data-i18n="downloads_eyebrow" data-i18n-default="Downloads">Downloads</span>\n'
+            '        <h2 class="section__title" data-i18n="files_heading" data-i18n-default="Dateien">Dateien</h2>\n'
             f'        <ul class="files">{render_files_list(downloadable_files)}</ul>\n'
             '      </section>'
         )
@@ -483,9 +685,16 @@ def build_project_index(project_dir: Path) -> str:
 
     eyebrow = html_escape(f"{meta.get('role', '')} · {meta.get('year', '')}".strip(" ·"))
     title = html_escape(meta.get("title", project_dir.name))
-    tagline = html_escape(meta.get("tagline", ""))
+    tagline = html_escape(raw_tagline)
     stack_html = " ".join(f"<span>· {html_escape(s)}</span>" for s in meta.get("stack", []))
     skills_html = "".join(f"<li>{html_escape(s)}</li>" for s in meta.get("stack", []))
+    lang_switch = lang_switch_html()
+    i18n_script_data = i18n_json([
+        "nav_home", "brand_portfolio", "back_to_portfolio", "demo_button",
+        "source_button", "live_button", "3d_button", "insights_eyebrow",
+        "images_heading", "downloads_eyebrow", "files_heading", "footer_text",
+        "github_label", "linkedin_label", "email_label",
+    ])
 
     template = """<!DOCTYPE html>
 <html lang="de">
@@ -498,35 +707,37 @@ def build_project_index(project_dir: Path) -> str:
 <body>
   <header class="site-header">
     <div class="container site-header__inner">
-      <a href="../../index.html" class="brand" data-home>Portfolio</a>
+      <a href="../../index.html" class="brand" data-home data-i18n="brand_portfolio" data-i18n-default="Portfolio">Portfolio</a>
       <nav class="nav" aria-label="Hauptnavigation">
-        <a class="nav__link" href="../../index.html" data-home>Home</a>
+        <a class="nav__link" href="../../index.html" data-home data-i18n="nav_home" data-i18n-default="Home">Home</a>
         <button class="theme-toggle" data-theme-toggle aria-label="Theme wechseln">◐</button>
+        {lang_switch}
       </nav>
     </div>
   </header>
 
   <main id="main">
     <article class="section container detail">
-      <a class="detail__back" href="../../index.html" data-home>← Zurück zum Portfolio</a>
+      <a class="detail__back" href="../../index.html" data-home data-i18n="back_to_portfolio" data-i18n-default="← Zurück zum Portfolio">← Zurück zum Portfolio</a>
       <header class="detail__header">
         <span class="eyebrow reveal">{eyebrow}</span>
         <h1 class="reveal">{title}</h1>
-        <p class="hero__title reveal">{tagline}</p>
+        {tagline_i18n_html}
         <div class="detail__meta reveal">{stack_html}</div>
         <ul class="skills" aria-label="Tech Stack" style="margin-top: 16px;">{skills_html}</ul>
         <div class="detail__links reveal">{links_html}</div>
       </header>
-      <div class="detail__body reveal" id="description">{body_html}</div>{files_section}{gallery_section}
+      <div class="detail__body reveal" id="description">{body_i18n_html}</div>{files_section}{gallery_section}
     </article>
   </main>
 
   <footer class="site-footer">
     <div class="container footer__inner">
-      <span>© 2026 — gebaut mit Vite, HTML & CSS.</span>
+      <span data-i18n="footer_text" data-i18n-default="© 2026 — gebaut mit Vite, HTML &amp; CSS.">© 2026 — gebaut mit Vite, HTML &amp; CSS.</span>
       <ul class="footer__links">{footer_links_html}</ul>
     </div>
   </footer>
+  <script>const I18N = {i18n_script_data};</script>
   <script>
     (function() {{
       const KEY = 'theme';
@@ -546,6 +757,7 @@ def build_project_index(project_dir: Path) -> str:
         apply(current === 'dark' ? 'light' : 'dark');
       }});
       init();
+      {lang_switch_script}
 
       // Reveal-on-scroll: ohne dieses Observer-Script bleiben .reveal-Elemente
       // dauerhaft unsichtbar (opacity: 0 aus style.css).
@@ -574,21 +786,310 @@ def build_project_index(project_dir: Path) -> str:
         eyebrow=eyebrow,
         stack_html=stack_html,
         skills_html=skills_html,
-        body_html=body_html,
+        tagline_i18n_html=tagline_i18n_html,
+        body_i18n_html=body_i18n_html,
         files_section=files_section,
         gallery_section=gallery_section,
         links_html=links_html,
         footer_links_html=footer_links_html,
+        lang_switch=lang_switch,
+        lang_switch_script=LANG_SWITCH_SCRIPT,
+        i18n_script_data=i18n_script_data,
     )
 
     return page
 
 
+def check_description_structure(project_name: str, description: str) -> None:
+    """Weiche Prüfung (bricht den Build NICHT ab): Projektbeschreibungen sollen
+    der Standardstruktur folgen — ### Ziel, ### Ablauf, ### Ergebnis, plus
+    optional ein frei benannter vierter Punkt. Fehlt eine der drei Pflicht-
+    Überschriften, gibt's nur eine Warnung in der Konsole."""
+    headings = [h.strip().lower() for h in re.findall(r'^###\s*(.+?)\s*$', description, re.MULTILINE)]
+    required = ["ziel", "ablauf", "ergebnis"]
+    missing = [r for r in required if r not in headings]
+    if missing:
+        print(f"  ! {project_name}: Beschreibung folgt nicht der Ziel/Ablauf/Ergebnis-Struktur (fehlt: {', '.join(missing)})")
+
+
 def update_project(project_dir: Path) -> None:
     """Schreibt die index.html eines Projektordners neu."""
+    meta = load_project(project_dir)
+    check_description_structure(project_dir.name, meta.get("description", ""))
     html = build_project_index(project_dir)
     (project_dir / "index.html").write_text(html, encoding="utf-8")
     print(f"  ✓ {project_dir.name}/index.html")
+
+
+UI_STRINGS = {
+    "nav_home": {"en": "Home", "es": "Inicio", "fr": "Accueil"},
+    "brand_portfolio": {"en": "Portfolio", "es": "Portafolio", "fr": "Portfolio"},
+    "back_to_portfolio": {"en": "← Back to portfolio", "es": "← Volver al portafolio", "fr": "← Retour au portfolio"},
+    "back_to_project": {"en": "Back to project", "es": "Volver al proyecto", "fr": "Retour au projet"},
+    "demo_button": {"en": "View demo", "es": "Ver demo", "fr": "Voir la démo"},
+    "source_button": {"en": "Source", "es": "Código", "fr": "Code source"},
+    "live_button": {"en": "Live", "es": "En vivo", "fr": "En direct"},
+    "3d_button": {"en": "3D view", "es": "Vista 3D", "fr": "Vue 3D"},
+    "insights_eyebrow": {"en": "Insights", "es": "Vistazo", "fr": "Aperçu"},
+    "images_heading": {"en": "Images", "es": "Imágenes", "fr": "Images"},
+    "downloads_eyebrow": {"en": "Downloads", "es": "Descargas", "fr": "Téléchargements"},
+    "files_heading": {"en": "Files", "es": "Archivos", "fr": "Fichiers"},
+    "footer_text": {
+        "en": "© 2026 — built with HTML & CSS.",
+        "es": "© 2026 — construido con HTML y CSS.",
+        "fr": "© 2026 — conçu avec HTML et CSS.",
+    },
+    "all_work_eyebrow": {"en": "All work", "es": "Todos los trabajos", "fr": "Tous les travaux"},
+    "all_projects_heading": {"en": "All projects", "es": "Todos los proyectos", "fr": "Tous les projets"},
+    "timeline_nav": {"en": "Timeline", "es": "Cronología", "fr": "Chronologie"},
+    "github_label": {"en": "GitHub", "es": "GitHub", "fr": "GitHub"},
+    "linkedin_label": {"en": "LinkedIn", "es": "LinkedIn", "fr": "LinkedIn"},
+    "email_label": {"en": "Email", "es": "Correo", "fr": "E-mail"},
+    "contact_button": {"en": "Contact", "es": "Contacto", "fr": "Contact"},
+    "about_eyebrow": {"en": "About", "es": "Sobre mí", "fr": "À propos"},
+    "stack_eyebrow": {"en": "Stack", "es": "Tecnologías", "fr": "Technologies"},
+    "verlauf_eyebrow": {"en": "History", "es": "Historial", "fr": "Historique"},
+    "kontakt_eyebrow": {"en": "Contact", "es": "Contacto", "fr": "Contact"},
+    "project_tag": {"en": "Project", "es": "Proyecto", "fr": "Projet"},
+    "search_placeholder": {"en": "Search projects…", "es": "Buscar proyectos…", "fr": "Rechercher des projets…"},
+    "search_empty": {"en": "No projects found.", "es": "No se encontraron proyectos.", "fr": "Aucun projet trouvé."},
+    "current_project_eyebrow": {"en": "Currently building", "es": "En desarrollo", "fr": "En cours de développement"},
+    "current_project_link": {"en": "View on GitHub", "es": "Ver en GitHub", "fr": "Voir sur GitHub"},
+    "github_activity_eyebrow": {"en": "Live", "es": "En vivo", "fr": "En direct"},
+    "github_activity_heading": {"en": "Recently on GitHub", "es": "Recientemente en GitHub", "fr": "Récemment sur GitHub"},
+    "github_activity_updated": {"en": "updated", "es": "actualizado", "fr": "mis à jour"},
+}
+
+
+def lang_switch_html() -> str:
+    """Die DE/EN/ES/FR-Buttons für den Header, direkt neben dem Theme-Toggle."""
+    buttons = ''.join(
+        f'<button type="button" data-lang="{code}" aria-current="{"true" if code == "de" else "false"}">{code.upper()}</button>'
+        for code in ("de", *LANGUAGES.keys())
+    )
+    return f'<div class="lang-switch" role="group" aria-label="Sprache / Language">{buttons}</div>'
+
+
+def i18n_json(keys: list) -> str:
+    """JSON-Objekt {en:{...}, es:{...}, fr:{...}} für die angegebenen UI_STRINGS-
+    Schlüssel — wird im generierten <script> als `const I18N = ...;` eingebettet."""
+    result = {lang: {k: UI_STRINGS[k][lang] for k in keys if k in UI_STRINGS} for lang in LANGUAGES}
+    return json.dumps(result, ensure_ascii=False)
+
+
+def i18n_span_variants(raw_text: str) -> str:
+    """<span data-i18n-lang-el="xx">...</span> je Sprache — zum Einsetzen IN ein
+    bestehendes Element hinein (z.B. per Marker in ein <h2>...</h2>)."""
+    html = f'<span data-i18n-lang-el="de">{html_escape(raw_text)}</span>'
+    for lang in LANGUAGES:
+        html += f'<span data-i18n-lang-el="{lang}">{html_escape(translate_text(raw_text, lang))}</span>'
+    return html
+
+
+def render_i18n_block(build_fn) -> str:
+    """build_fn(lang) -> HTML-Fragment für diese Sprache ('de' zuerst, dann
+    'en'/'es'/'fr'). Ergebnis sind vier data-i18n-lang-Wrapper (display:contents),
+    von denen der Sprachumschalter per JS immer nur einen sichtbar macht."""
+    html = f'<div data-i18n-lang="de">{build_fn("de")}</div>'
+    for lang in LANGUAGES:
+        html += f'<div data-i18n-lang="{lang}">{build_fn(lang)}</div>'
+    return html
+
+
+def render_current_project_section(kv: dict) -> str:
+    """Baut den 'Aktuelles Projekt'-Abschnitt aus aktuelles_projekt_titel/
+    _text/_link + dem Checklisten-Abschnitt '## Aktuelles Projekt Schritte' in
+    inhalt.txt. Fortschritt wird automatisch aus den abgehakten Schritten
+    berechnet. Gibt "" zurück (Abschnitt entfällt komplett), wenn kein Titel
+    gesetzt ist — das Feature ist also rein optional."""
+    titel_raw = kv.get("aktuelles_projekt_titel", "")
+    if not titel_raw:
+        return ""
+    text_raw = kv.get("aktuelles_projekt_text", "")
+    link = kv.get("aktuelles_projekt_link", "")
+    steps = parse_checklist_section(
+        SITE_CONTENT.read_text(encoding="utf-8") if SITE_CONTENT.exists() else "",
+        "Aktuelles Projekt Schritte",
+    )
+    done_count = sum(1 for s in steps if s["done"])
+    progress = round(done_count / len(steps) * 100) if steps else int(kv.get("aktuelles_projekt_fortschritt", "0") or 0)
+
+    def build(lang):
+        titel = html_escape(titel_raw if lang == "de" else translate_text(titel_raw, lang))
+        text = html_escape(text_raw if lang == "de" else translate_text(text_raw, lang))
+        link_label = "Auf GitHub ansehen" if lang == "de" else UI_STRINGS["current_project_link"][lang]
+        steps_html = "".join(
+            f'<li class="current-project__step{" is-done" if s["done"] else ""}">'
+            f'<span class="current-project__step-check">{"✓" if s["done"] else ""}</span>'
+            f'<span class="current-project__step-text">{html_escape(s["text"] if lang == "de" else translate_text(s["text"], lang))}</span>'
+            f'</li>'
+            for s in steps
+        )
+        link_html = (
+            f'<a class="btn btn--ghost" href="{html_escape(link)}" target="_blank" rel="noopener noreferrer">{link_label} ↗</a>'
+            if link else ""
+        )
+        return (
+            f'<div class="current-project__head">'
+            f'<h3 style="margin:0;">{titel}</h3>{link_html}'
+            f'</div>'
+            f'<p class="muted" style="margin-top:8px;">{text}</p>'
+            + (f'<ul class="current-project__steps">{steps_html}</ul>' if steps else '')
+            + (
+                f'<div class="progress-bar"><div class="progress-bar__fill" style="width:{progress}%"></div></div>'
+                f'<div class="progress-bar__label"><span>{done_count}/{len(steps)}</span><span>{progress}%</span></div>'
+                if steps else ''
+            )
+        )
+
+    inner = render_i18n_block(build)
+    return (
+        '\n      <section class="section section--tight container reveal" id="current-project">\n'
+        '        <span class="eyebrow" data-i18n="current_project_eyebrow" data-i18n-default="Woran ich gerade arbeite">Woran ich gerade arbeite</span>\n'
+        f'        <div class="current-project">{inner}</div>\n'
+        '      </section>\n      '
+    )
+
+
+def render_skill_radar_svg(skills: list) -> str:
+    """Baut ein Vieleck-/Radar-Diagramm als reines Inline-SVG: eine Ecke pro
+    Skill, der Datenpunkt liegt umso weiter außen, je höher das Level (0-100).
+    Keine Bibliothek nötig, Farben laufen komplett über CSS-Klassen (also
+    hell/dunkel-fähig). Bei weniger als 3 Skills (kein sinnvolles Vieleck)
+    fällt die Funktion auf eine einfache Liste zurück."""
+    n = len(skills)
+    if n == 0:
+        return ""
+    if n < 3:
+        items = "".join(
+            f'<li>{html_escape(s["name"])} <span class="skill-radar-fallback__pct">{s["level"]}%</span></li>'
+            for s in skills
+        )
+        return f'<ul class="skill-radar-fallback">{items}</ul>'
+
+    size = 340
+    cx = cy = size / 2
+    radius = size / 2 - 76  # Rand für die Labels lassen
+
+    def point_at(r, i):
+        angle = -math.pi / 2 + i * (2 * math.pi / n)
+        return (cx + r * math.cos(angle), cy + r * math.sin(angle))
+
+    def polygon_points(r):
+        return " ".join(f"{x:.1f},{y:.1f}" for x, y in (point_at(r, i) for i in range(n)))
+
+    rings = "".join(
+        f'<polygon points="{polygon_points(radius * pct / 100)}" class="skill-radar__ring" />'
+        for pct in (25, 50, 75, 100)
+    )
+    axes = "".join(
+        f'<line x1="{cx}" y1="{cy}" x2="{point_at(radius, i)[0]:.1f}" y2="{point_at(radius, i)[1]:.1f}" class="skill-radar__axis" />'
+        for i in range(n)
+    )
+    labels = []
+    for i, s in enumerate(skills):
+        lx, ly = point_at(radius + 30, i)
+        anchor = "middle"
+        if lx < cx - 4:
+            anchor = "end"
+        elif lx > cx + 4:
+            anchor = "start"
+        labels.append(
+            f'<text x="{lx:.1f}" y="{ly:.1f}" text-anchor="{anchor}" dominant-baseline="middle" '
+            f'class="skill-radar__label">{html_escape(s["name"])}</text>'
+        )
+
+    data_points = [point_at(radius * s["level"] / 100, i) for i, s in enumerate(skills)]
+    data_polygon = " ".join(f"{x:.1f},{y:.1f}" for x, y in data_points)
+    dots = "".join(
+        f'<circle cx="{x:.1f}" cy="{y:.1f}" r="3.5" class="skill-radar__dot"><title>{html_escape(skills[i]["name"])}: {skills[i]["level"]}%</title></circle>'
+        for i, (x, y) in enumerate(data_points)
+    )
+
+    return (
+        f'<svg viewBox="0 0 {size} {size}" class="skill-radar__svg" role="img" aria-label="Skill-Diagramm">'
+        f'{rings}{axes}'
+        f'<polygon points="{data_polygon}" class="skill-radar__data" />'
+        f'{dots}{"".join(labels)}'
+        f'</svg>'
+    )
+
+
+def render_github_activity_section(repos: list) -> str:
+    """Baut den 'Zuletzt auf GitHub'-Abschnitt aus den beim Bauen abgerufenen
+    Repos. Gibt "" zurück (Abschnitt entfällt), wenn keine Repos geladen
+    werden konnten (kein github: in inhalt.txt, Netzwerkfehler, Rate-Limit)."""
+    if not repos:
+        return ""
+    items = []
+    for r in repos:
+        meta_parts = []
+        if r["language"]:
+            meta_parts.append(html_escape(r["language"]))
+        if r["stars"]:
+            meta_parts.append(f'★ {r["stars"]}')
+        if r["updated"]:
+            meta_parts.append(f'<span data-i18n="github_activity_updated" data-i18n-default="aktualisiert">aktualisiert</span> {html_escape(r["updated"])}')
+        items.append(
+            f'<a class="github-activity__item" href="{html_escape(r["url"])}" target="_blank" rel="noopener noreferrer">'
+            f'<div class="github-activity__name">📦 {html_escape(r["name"])}</div>'
+            + (f'<div class="github-activity__desc">{html_escape(r["description"])}</div>' if r["description"] else '')
+            + f'<div class="github-activity__meta">{" · ".join(meta_parts)}</div>'
+            f'</a>'
+        )
+    return (
+        '\n      <section class="section section--tight container reveal" id="github-activity">\n'
+        '        <span class="eyebrow" data-i18n="github_activity_eyebrow" data-i18n-default="Live">Live</span>\n'
+        '        <h2 class="section__title" data-i18n="github_activity_heading" data-i18n-default="Zuletzt auf GitHub">Zuletzt auf GitHub</h2>\n'
+        f'        <div class="github-activity">{"".join(items)}</div>\n'
+        '      </section>\n      '
+    )
+
+
+# Gemeinsame JS-Logik für den Sprachumschalter — identisch auf jeder Seite, die
+# lang_switch_html() einbindet. Nutzt zwei Attribute:
+# - data-i18n-lang="xx"  auf WRAPPERN mit mehreren Kindern (display:contents,
+#   damit der Wrapper selbst keine Box im Flex-/Grid-Layout erzeugt).
+# - data-i18n-lang-el="xx" auf einzelnen Elementen (display:revert, damit z.B.
+#   ein <p> wieder block wird statt wie ein Wrapper zu verschwinden).
+# - data-i18n="key" + data-i18n-default="Deutscher Text" für feste UI-Strings
+#   (Buttons/Labels), übersetzt über das Seiten-eigene I18N-Objekt.
+LANG_SWITCH_SCRIPT = """
+      // Sprache
+      const LANG_KEY = 'lang';
+      function applyLang(lang) {
+        document.documentElement.setAttribute('lang', lang);
+        document.querySelectorAll('[data-i18n-lang]').forEach((el) => {
+          el.style.display = el.getAttribute('data-i18n-lang') === lang ? 'contents' : 'none';
+        });
+        document.querySelectorAll('[data-i18n-lang-el]').forEach((el) => {
+          el.style.display = el.getAttribute('data-i18n-lang-el') === lang ? 'revert' : 'none';
+        });
+        document.querySelectorAll('[data-i18n]').forEach((el) => {
+          const key = el.getAttribute('data-i18n');
+          const fallback = el.getAttribute('data-i18n-default') || el.textContent;
+          const dict = (typeof I18N !== 'undefined' && I18N[lang]) || null;
+          el.textContent = (lang !== 'de' && dict && dict[key]) || fallback;
+        });
+        document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => {
+          const key = el.getAttribute('data-i18n-placeholder');
+          const fallback = el.getAttribute('data-i18n-placeholder-default') || el.placeholder;
+          const dict = (typeof I18N !== 'undefined' && I18N[lang]) || null;
+          el.placeholder = (lang !== 'de' && dict && dict[key]) || fallback;
+        });
+        localStorage.setItem(LANG_KEY, lang);
+        document.querySelectorAll('.lang-switch button').forEach((b) => {
+          b.setAttribute('aria-current', b.dataset.lang === lang ? 'true' : 'false');
+        });
+      }
+      function initLang() {
+        applyLang(localStorage.getItem(LANG_KEY) || 'de');
+      }
+      document.querySelectorAll('.lang-switch button').forEach((btn) => {
+        btn.addEventListener('click', () => applyLang(btn.dataset.lang));
+      });
+      initLang();
+"""
 
 
 def js_string(s: str) -> str:
@@ -712,18 +1213,32 @@ def load_all_projects() -> list:
 
 
 def render_timeline_entry(p: dict) -> str:
-    """Ein Timeline-Item."""
-    href = f'projekte/{p["slug"]}/index.html'
+    """Ein Timeline-Item. p['href'] ist optional — leer, wenn kein passender
+    Projektordner gefunden wurde; der Eintrag erscheint dann ohne Link."""
+    href = p.get("href", "")
+    title_html = f'<h3 class="timeline__title">{html_escape(p["title"])}</h3>'
+    desc_html = f'<p class="timeline__description">{i18n_span_variants(p["short_description"])}</p>'
+    if href:
+        inner = (
+            f'    <a href="{href}" class="timeline__link">\n'
+            f'      {title_html}\n'
+            f'      {desc_html}\n'
+            f'      <span class="timeline__tag" data-i18n="project_tag" data-i18n-default="Projekt">Projekt</span>\n'
+            f'    </a>\n'
+        )
+    else:
+        inner = (
+            f'    <div class="timeline__link timeline__link--static">\n'
+            f'      {title_html}\n'
+            f'      {desc_html}\n'
+            f'    </div>\n'
+        )
     return (
         f'<div class="timeline__item">\n'
         f'  <div class="timeline__dot"></div>\n'
         f'  <div class="timeline__date">{html_escape(str(p["year"]))}</div>\n'
         f'  <div class="timeline__content">\n'
-        f'    <a href="{href}" class="timeline__link">\n'
-        f'      <h3 class="timeline__title">{html_escape(p["title"])}</h3>\n'
-        f'      <p class="timeline__description">{html_escape(p["short_description"])}</p>\n'
-        f'      <span class="timeline__tag">Projekt</span>\n'
-        f'    </a>\n'
+        f'{inner}'
         f'  </div>\n'
         f'</div>'
     )
@@ -733,13 +1248,15 @@ def render_project_card(p: dict) -> str:
     """Eine Projekt-Karte für alle-projekte.html."""
     stack_li = "".join(f"<li>{html_escape(s)}</li>" for s in p["stack"])
     year_role = html_escape(f"{p['year']} · {p['role']}".strip(" ·"))
+    # Durchsuchbarer Text (Titel/Tagline/Stack) fürs clientseitige Live-Suchfeld.
+    search_text = html_escape(f"{p['title']} {p['tagline']} {' '.join(p['stack'])}".lower())
     return (
         f'    <li>\n'
-        f'      <a class="card reveal" href="projekte/{p["slug"]}/index.html" >\n'
+        f'      <a class="card reveal" href="projekte/{p["slug"]}/index.html" data-search="{search_text}">\n'
         f'        <div class="card__body">\n'
         f'          <div class="card__year">{year_role}</div>\n'
         f'          <h3 class="card__title">{html_escape(p["title"])}</h3>\n'
-        f'          <p class="card__tagline">{html_escape(p["tagline"])}</p>\n'
+        f'          <p class="card__tagline">{i18n_span_variants(p["tagline"])}</p>\n'
         f'          <ul class="card__stack">{stack_li}</ul>\n'
         f'        </div>\n'
         f'        <span class="card__arrow" aria-hidden="true">↗</span>\n'
@@ -762,8 +1279,19 @@ def update_alle_projekte() -> None:
     if new_src is None:
         print("  ! Marker ALL_PROJECTS_START/END fehlen in alle-projekte.html.")
         return
+    src = new_src
 
-    ALLE_PROJEKTE.write_text(new_src, encoding="utf-8")
+    i18n_src = replace_marker_block(
+        src, "I18N_SCRIPT",
+        "const I18N = " + i18n_json([
+            "nav_home", "brand_portfolio", "timeline_nav", "all_projects_heading",
+            "all_work_eyebrow", "footer_text", "search_placeholder", "search_empty",
+        ]) + ";",
+    )
+    if i18n_src is not None:
+        src = i18n_src
+
+    ALLE_PROJEKTE.write_text(src, encoding="utf-8")
     print(f"  ✓ {ALLE_PROJEKTE.name} ({len(projects)} Projekte)")
 
 
@@ -777,25 +1305,29 @@ def replace_marker_block(src: str, marker: str, new_inner: str) -> str | None:
 
 
 def update_portfolio_timeline() -> None:
-    """Ersetzt den Inhalt zwischen TIMELINE_START und TIMELINE_END in index.html."""
+    """Ersetzt den Inhalt zwischen TIMELINE_START und TIMELINE_END in index.html.
+
+    Die Einträge kommen NICHT automatisch von allen Projekten, sondern werden
+    von Hand in inhalt.txt unter '## Zeitstrahl' angegeben (siehe
+    parse_timeline_section) — so bestimmst du selbst, was im Zeitstrahl
+    auftaucht und in welcher Reihenfolge."""
     if not PORTFOLIO.exists():
         print(f"  ! {PORTFOLIO} nicht gefunden, überspringe Timeline.")
         return
 
-    projects = load_all_projects()
-    # älteste zuerst; fehlende Jahre nach hinten
-    projects.sort(key=lambda p: (p["year"] == "", int(p["year"]) if str(p["year"]).isdigit() else 0))
+    site_text = SITE_CONTENT.read_text(encoding="utf-8") if SITE_CONTENT.exists() else ""
+    entries = parse_timeline_section(site_text)
 
-    entries = "\n".join(render_timeline_entry(p) for p in projects)
+    entries_html = "\n".join(render_timeline_entry(e) for e in entries)
     src = PORTFOLIO.read_text(encoding="utf-8")
 
-    new_src = replace_marker_block(src, "TIMELINE", entries)
+    new_src = replace_marker_block(src, "TIMELINE", entries_html)
     if new_src is None:
         print("  ! Marker TIMELINE_START/TIMELINE_END fehlen in index.html.")
         return
 
     PORTFOLIO.write_text(new_src, encoding="utf-8")
-    print(f"  ✓ {PORTFOLIO.name} (Timeline: {len(projects)} Einträge)")
+    print(f"  ✓ {PORTFOLIO.name} (Timeline: {len(entries)} Einträge)")
 
 
 def update_portfolio_content() -> None:
@@ -813,54 +1345,80 @@ def update_portfolio_content() -> None:
 
     kv = load_site_content()
     name = html_escape(kv.get("name", "Dein Name"))
-    rolle = html_escape(kv.get("rolle", ""))
-    ort = html_escape(kv.get("ort", ""))
-    about = html_escape(kv.get("about", ""))
+    rolle_raw = kv.get("rolle", "")
+    ort_raw = kv.get("ort", "")
+    about_raw = kv.get("about", "")
     email = kv.get("email", "")
     github = kv.get("github", "")
     linkedin = kv.get("linkedin", "")
-    skills = [s.strip() for s in kv.get("skills", "").split(",") if s.strip()]
+    # skills: "Python:90, JavaScript:75, React" — Level (0-100) optional, Default 75.
+    skills = []
+    for entry in kv.get("skills", "").split(","):
+        entry = entry.strip()
+        if not entry:
+            continue
+        skill_name, _, level = entry.partition(":")
+        level = level.strip()
+        skills.append({
+            "name": skill_name.strip(),
+            "level": int(level) if level.isdigit() else 75,
+        })
 
     titel = html_escape(kv.get("titel", "Portfolio"))
     meta_beschreibung = html_escape(
         kv.get("meta_beschreibung", "Portfolio — Projekte, Skills und Kontakt auf einen Blick.")
     )
-    about_titel = html_escape(kv.get("about_titel", "Kurz über mich"))
-    stack_titel = html_escape(kv.get("stack_titel", "Was ich nutze"))
-    projekte_titel = html_escape(kv.get("projekte_titel", "Projekte"))
-    projekte_text = html_escape(kv.get(
+    about_titel_html = i18n_span_variants(kv.get("about_titel", "Kurz über mich"))
+    stack_titel_html = i18n_span_variants(kv.get("stack_titel", "Was ich nutze"))
+    projekte_titel_html = i18n_span_variants(kv.get("projekte_titel", "Projekte"))
+    projekte_text_html = i18n_span_variants(kv.get(
         "projekte_text",
         "Eine chronologische Übersicht aller Projekte findest du im Zeitstrahl oben. Für die komplette Liste:",
     ))
-    projekte_button = html_escape(kv.get("projekte_button", "Alle Projekte ansehen →"))
-    zeitstrahl_titel = html_escape(kv.get("zeitstrahl_titel", "Zeitstrahl"))
-    kontakt_titel = html_escape(kv.get("kontakt_titel", "Lass uns reden"))
-    kontakt_text = html_escape(kv.get(
+    projekte_button_html = i18n_span_variants(kv.get("projekte_button", "Alle Projekte ansehen →"))
+    zeitstrahl_titel_html = i18n_span_variants(kv.get("zeitstrahl_titel", "Zeitstrahl"))
+    kontakt_titel_html = i18n_span_variants(kv.get("kontakt_titel", "Lass uns reden"))
+    kontakt_text_html = i18n_span_variants(kv.get(
         "kontakt_text", "Du hast was Spannendes? Melde dich gerne per Mail oder über Social."
     ))
 
-    hero_html = (
-        f'<h1 class="hero__name reveal">{name}</h1>\n'
-        f'<p class="hero__title reveal">{rolle}</p>\n'
-        f'<p class="muted reveal" style="max-width: 52ch; margin-bottom: 32px;">{about}</p>\n'
-        f'<div class="hero__cta reveal">\n'
-        f'  <a class="btn btn--ghost" href="mailto:{html_escape(email)}">Kontakt</a>\n'
-        f'</div>'
-    )
-    about_html = (
-        f'<div><p class="muted">{ort}</p></div>\n'
-        f'<div class="about__copy"><p>{about}</p></div>'
-    )
-    skills_html = "".join(f'<li>{html_escape(s)}</li>' for s in skills)
+    def build_hero(lang):
+        rolle_t = html_escape(rolle_raw if lang == "de" else translate_text(rolle_raw, lang))
+        about_t = html_escape(about_raw if lang == "de" else translate_text(about_raw, lang))
+        kontakt_label = "Kontakt" if lang == "de" else UI_STRINGS["contact_button"][lang]
+        return (
+            f'<h1 class="hero__name reveal">{name}</h1>\n'
+            f'<p class="hero__title reveal">{rolle_t}</p>\n'
+            f'<p class="muted reveal" style="max-width: 52ch; margin-bottom: 32px;">{about_t}</p>\n'
+            f'<div class="hero__cta reveal">\n'
+            f'  <a class="btn btn--ghost" href="mailto:{html_escape(email)}">{kontakt_label}</a>\n'
+            f'</div>'
+        )
+    hero_html = render_i18n_block(build_hero)
+
+    def build_about(lang):
+        ort_t = html_escape(ort_raw if lang == "de" else translate_text(ort_raw, lang))
+        about_t = html_escape(about_raw if lang == "de" else translate_text(about_raw, lang))
+        return f'<div><p class="muted">{ort_t}</p></div>\n<div class="about__copy"><p>{about_t}</p></div>'
+    about_html = render_i18n_block(build_about)
+
+    skills_html = render_skill_radar_svg(skills)
 
     contact_parts = []
     if github:
-        contact_parts.append(f'<li><a href="{html_escape(github)}">GitHub →</a></li>')
+        contact_parts.append(f'<li><a href="{html_escape(github)}" data-i18n="github_label" data-i18n-default="GitHub">GitHub</a> →</li>')
     if linkedin:
-        contact_parts.append(f'<li><a href="{html_escape(linkedin)}">LinkedIn →</a></li>')
+        contact_parts.append(f'<li><a href="{html_escape(linkedin)}" data-i18n="linkedin_label" data-i18n-default="LinkedIn">LinkedIn</a> →</li>')
     if email:
-        contact_parts.append(f'<li><a href="mailto:{html_escape(email)}">Email →</a></li>')
+        contact_parts.append(f'<li><a href="mailto:{html_escape(email)}" data-i18n="email_label" data-i18n-default="Email">Email</a> →</li>')
     contact_html = "".join(contact_parts)
+
+    current_project_section = render_current_project_section(kv)
+
+    # Nutzername aus der github:-URL ziehen (leerer Pfad = Platzhalter-URL -> kein Aufruf)
+    github_path = urllib.parse.urlparse(github).path.strip("/") if github else ""
+    github_username = github_path.split("/")[0] if github_path else ""
+    github_activity_section = render_github_activity_section(fetch_github_repos(github_username))
 
     src = PORTFOLIO.read_text(encoding="utf-8")
     missing = []
@@ -869,19 +1427,39 @@ def update_portfolio_content() -> None:
         ("ABOUT", about_html),
         ("SKILLS", skills_html),
         ("CONTACT", contact_html),
-        ("ABOUT_TITLE", about_titel),
-        ("STACK_TITLE", stack_titel),
-        ("PROJECTS_TITLE", projekte_titel),
-        ("PROJECTS_TEXT", projekte_text),
-        ("PROJECTS_BUTTON", projekte_button),
-        ("TIMELINE_TITLE", zeitstrahl_titel),
-        ("CONTACT_TITLE", kontakt_titel),
-        ("CONTACT_TEXT", kontakt_text),
+        ("ABOUT_TITLE", about_titel_html),
+        ("STACK_TITLE", stack_titel_html),
+        ("PROJECTS_TITLE", projekte_titel_html),
+        ("PROJECTS_TEXT", projekte_text_html),
+        ("PROJECTS_BUTTON", projekte_button_html),
+        ("TIMELINE_TITLE", zeitstrahl_titel_html),
+        ("CONTACT_TITLE", kontakt_titel_html),
+        ("CONTACT_TEXT", kontakt_text_html),
+        ("CURRENT_PROJECT", current_project_section),
+        ("GITHUB_ACTIVITY", github_activity_section),
     ):
         new_src = replace_marker_block(src, marker, inner)
         if new_src is None:
             missing.append(marker)
             continue
+        src = new_src
+
+    # I18N-Objekt für die festen UI-Strings (Home/Portfolio/Eyebrows/Footer/...)
+    # dieser Seite — Beschreibungstexte laufen über die data-i18n-lang-Blöcke
+    # oben, nicht über dieses Objekt.
+    new_src = replace_marker_block(
+        src, "I18N_SCRIPT",
+        "const I18N = " + i18n_json([
+            "nav_home", "brand_portfolio", "about_eyebrow", "stack_eyebrow",
+            "all_work_eyebrow", "verlauf_eyebrow", "kontakt_eyebrow", "project_tag",
+            "github_label", "linkedin_label", "email_label", "footer_text",
+            "current_project_eyebrow", "current_project_link",
+            "github_activity_eyebrow", "github_activity_heading", "github_activity_updated",
+        ]) + ";",
+    )
+    if new_src is None:
+        missing.append("I18N_SCRIPT")
+    else:
         src = new_src
 
     # <title> und Meta-Description sind RCDATA/Attribut-Inhalte, dort funktionieren
@@ -936,6 +1514,8 @@ def main() -> None:
             )
         print(f"  ✓ portfolio vorlagen/3d-viewer/3d-viewer.html ({count} Modell(e) eingebettet)")
         sync_project_3d_viewers()
+
+    save_translation_cache()
 
 
 if __name__ == "__main__":

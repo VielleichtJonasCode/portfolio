@@ -132,6 +132,38 @@ p  { margin: 0; }
 }
 .theme-toggle:hover { background: var(--bg-muted); }
 
+/* ===== Sprachumschalter ===== */
+.lang-switch {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2px;
+  margin-left: 8px;
+}
+.lang-switch button {
+  border: none;
+  background: transparent;
+  color: var(--fg-muted);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.lang-switch button:hover { background: var(--bg-muted); }
+.lang-switch button[aria-current='true'] { background: var(--accent); color: var(--accent-fg); }
+
+/* Übersetzte Inhaltsblöcke: standardmäßig ist nur Deutsch sichtbar, JS schaltet
+   beim Sprachwechsel um. display:contents statt display:none/block, damit die
+   Wrapper selbst keine Box im Flex-/Block-Layout der Eltern erzeugen. */
+[data-i18n-lang] { display: none; }
+[data-i18n-lang='de'] { display: contents; }
+[data-i18n-lang-el] { display: none; }
+[data-i18n-lang-el='de'] { display: revert; }
+
 /* ===== Sections ===== */
 .section { padding: clamp(64px, 10vw, 120px) 0; }
 .section--tight { padding: clamp(48px, 7vw, 80px) 0; }
@@ -210,6 +242,201 @@ p  { margin: 0; }
   padding: 6px 12px;
   font-size: 0.9rem;
   color: var(--fg-muted);
+}
+
+/* ===== Skill-Vieleck (Radar-Chart) ===== */
+.skill-radar {
+  display: flex;
+  justify-content: center;
+}
+.skill-radar__svg {
+  width: 100%;
+  max-width: 380px;
+  height: auto;
+  overflow: visible;
+}
+.skill-radar__ring {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.skill-radar__axis {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.skill-radar__data {
+  fill: color-mix(in oklab, var(--fg) 16%, transparent);
+  stroke: var(--fg);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+.skill-radar__dot {
+  fill: var(--fg);
+}
+.skill-radar__label {
+  fill: var(--fg-muted);
+  font-size: 11px;
+  font-family: var(--font-sans);
+}
+/* Fallback für < 3 Skills (kein sinnvolles Vieleck möglich) */
+.skill-radar-fallback {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.skill-radar-fallback__pct {
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+}
+
+/* ===== Aktuelles Projekt ===== */
+.current-project {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: clamp(24px, 4vw, 40px);
+  background: var(--bg-muted);
+}
+.current-project__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.current-project__steps {
+  list-style: none;
+  margin: 20px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.current-project__step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.92rem;
+}
+.current-project__step-check {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  border: 1.5px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  font-size: 0.68rem;
+  color: transparent;
+  background: var(--bg);
+}
+.current-project__step.is-done .current-project__step-check {
+  background: var(--fg);
+  border-color: var(--fg);
+  color: var(--bg);
+}
+.current-project__step.is-done .current-project__step-text {
+  color: var(--fg-muted);
+  text-decoration: line-through;
+  text-decoration-color: var(--border);
+}
+.progress-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  margin-top: 24px;
+}
+.progress-bar__fill {
+  height: 100%;
+  background: var(--fg);
+  border-radius: 999px;
+  transition: width 700ms var(--ease);
+}
+.progress-bar__label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.76rem;
+  color: var(--fg-muted);
+  margin-top: 8px;
+  font-family: var(--font-mono);
+}
+
+/* ===== GitHub-Aktivität ===== */
+.github-activity {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+.github-activity__item {
+  display: block;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  text-decoration: none;
+  color: inherit;
+  transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.github-activity__item:hover { background: var(--bg-muted); border-color: var(--fg-muted); }
+.github-activity__name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.github-activity__desc {
+  color: var(--fg-muted);
+  font-size: 0.85rem;
+  margin-top: 6px;
+}
+.github-activity__meta {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+  font-size: 0.76rem;
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+}
+
+/* ===== Projekt-Suche ===== */
+.search-box {
+  position: relative;
+  margin-bottom: 24px;
+  max-width: 420px;
+}
+.search-box input {
+  width: 100%;
+  padding: 12px 16px 12px 40px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 0.92rem;
+  font-family: inherit;
+}
+.search-box input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.search-box::before {
+  content: "⌕";
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--fg-muted);
+  font-size: 1.2rem;
+  pointer-events: none;
+}
+.search-empty {
+  display: none;
+  color: var(--fg-muted);
+  font-size: 0.92rem;
+  padding: 32px 0;
+  text-align: center;
 }
 
 /* ===== Projects ===== */

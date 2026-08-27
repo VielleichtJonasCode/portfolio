@@ -23,12 +23,19 @@
 # Anfang werden dabei ignoriert (zum Testen/Auskommentieren).
 # Siehe projekte/Satelite-Tools/projekt.txt für ein aktives Beispiel.
 #
-# Button MITTEN im Beschreibungstext (### Beschreibung usw., nicht in einem
+# Button MITTEN im Beschreibungstext (### Ziel usw., nicht in einem
 # ##-Abschnitt): "Button:Beschriftung:URL" irgendwo in einem Satz/Listenpunkt
 # schreiben — wird automatisch zum echten Button an genau dieser Stelle. Die
 # URL darf dabei kein Leerzeichen enthalten. Für einen normalen Text-Link
 # (kein Button, nur unterstrichenes Wort) stattdessen [Beschriftung](URL)
 # schreiben.
+#
+# Feste Beschreibungsstruktur: jedes Projekt soll die Überschriften
+# ### Ziel, ### Ablauf, ### Ergebnis enthalten (in dieser Reihenfolge),
+# plus optional einen vierten, frei benannten Punkt (z.B. "Roadmap",
+# "Learnings", "Architektur" — was auch immer passt). Fehlt eine der drei
+# Pflicht-Überschriften, gibt update_website.py beim Bauen nur eine Warnung
+# aus (bricht nicht ab) — so bleibt die Struktur überall konsistent.
 title: Projekt-Titel
 tagline: Kurzer Ein-Satz-Teaser für Karten und Zeitstrahl.
 role: Solo / Rolle
@@ -40,18 +47,27 @@ live:
 featured: false
 timeline: Kurzbeschreibung für den Zeitstrahl auf der Startseite (1-2 Sätze).
 
-### Beschreibung
-Worum geht es in dem Projekt? 2-4 Sätze Überblick.
+### Ziel
+Worum ging es in dem Projekt? Was war die Ausgangslage oder das Problem,
+das gelöst werden sollte? 2-4 Sätze.
 
-- Wichtiges Feature 1
-- Wichtiges Feature 2
-- Wichtiges Feature 3
+### Ablauf
+Wie bist du vorgegangen? Technischer Ansatz, wichtige Entscheidungen,
+Architektur.
 
-### Technische Neuheiten
-- Was ist technisch interessant oder ungewöhnlich gelöst?
+- Wichtiger Schritt/Entscheidung 1
+- Wichtiger Schritt/Entscheidung 2
+- Wichtiger Schritt/Entscheidung 3
 
-### Was ich gelernt habe
-- Was hast du dabei gelernt?
+### Ergebnis
+Was ist dabei rausgekommen? Features, Zahlen, ein Beispiel.
+
+- Feature/Ergebnis 1
+- Feature/Ergebnis 2
+
+### Learnings
+Optionaler vierter Punkt — frei benennbar (z.B. "Roadmap", "Architektur",
+"Learnings"). Kann auch komplett weggelassen werden.
 
 ## Links
 # Zeilen, die mit "#" beginnen, werden ignoriert (Kommentar/Test) — so:

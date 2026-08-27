@@ -1,17 +1,11 @@
+titel: Portfolio
+meta_beschreibung: Portfolio — Projekte, Skills und Kontakt auf einen Blick.
+
 name: Dein Name
 rolle: Fullstack Developer / Designer
 ort: Berlin, DE
 about: Platzhalter für deinen About-Text. 2–3 Sätze, wer du bist, was du baust, was dich interessiert.
-email: hello@example.com
-github: https://github.com/
-linkedin: https://linkedin.com/
-skills: TypeScript, JavaScript, React, Node.js, CSS, HTML, Figma, Git
-
-titel: Portfolio
-meta_beschreibung: Portfolio — Projekte, Skills und Kontakt auf einen Blick.
-
 about_titel: Kurz über mich
-stack_titel: Was ich nutze
 
 projekte_titel: Projekte
 projekte_text: Eine chronologische Übersicht aller Projekte findest du im Zeitstrahl oben. Für die komplette Liste:
@@ -19,5 +13,45 @@ projekte_button: Alle Projekte ansehen →
 
 zeitstrahl_titel: Zeitstrahl
 
+# Zeitstrahl-Einträge: NICHT automatisch aus den Projekten gebaut — nur was
+# hier steht, erscheint (in dieser Reihenfolge). Format pro Zeile:
+# Titel | Jahr | Beschreibung | Projektordner (optional)
+# Der Projektordner ist der Ordnername unter projekte/ (z.B. "Satelite-Tools")
+# — stimmt er mit einem echten Ordner überein, wird der Link automatisch
+# dorthin gesetzt. Ohne (oder mit falschem) Projektordner erscheint der
+# Eintrag einfach ohne Link, z.B. für Meilensteine ohne eigene Projektseite.
+## Zeitstrahl
+Satellite Tools | 2024 | Python-Toolkit für orbitale Mechanik & Raketen-Simulation. Hohmann-Transfers, Δv-Berechnung, Tsiolkovsky-Gleichung, Vis-Viva, 7 reale Raketen | Satelite-Tools
+
+# "Aktuelles Projekt"-Abschnitt: leer lassen (aktuelles_projekt_titel entfernen
+# oder leer), um den ganzen Abschnitt auszublenden. Der Link führt z.B. zu
+# einem GitHub-Repo. Fortschritt wird automatisch aus den Schritten unten
+# berechnet — alternativ mit aktuelles_projekt_fortschritt: 60 von Hand setzen,
+# falls (noch) keine Schritte eingetragen sind.
+aktuelles_projekt_titel: Portfolio-Website
+aktuelles_projekt_text: Static-Site-Generator in Python, mit automatischer Mehrsprachigkeit und einem selbstgebauten 3D-Modell-Viewer.
+aktuelles_projekt_link: https://github.com/
+
+## Aktuelles Projekt Schritte
+[x] Grundgerüst & Projektseiten-Generator
+[x] Mehrsprachigkeit (DE/EN/ES/FR)
+[x] 3D-Viewer mit eingebetteten Modellen
+[ ] Suche & Skill-Vieleck
+[ ] Deployment auf GitHub Pages
+
+stack_titel: Was ich nutze
+# Skills fürs Vieleck-Diagramm: Name:Level, getrennt durch Kommas.
+# Level ist eine Zahl von 0-100 (bestimmt, wie weit außen die Ecke liegt).
+# Level kann auch weggelassen werden (z.B. nur "Python"), dann wird 75 angenommen.
+# Die Anzahl der Skills ist beliebig — jeder Skill bekommt automatisch eine
+# eigene Ecke im Vieleck. Bei weniger als 3 Skills wird stattdessen eine
+# einfache Liste angezeigt (ein Vieleck braucht mindestens 3 Ecken).
+skills: TypeScript:85, JavaScript:90, React:80, Node.js:75, CSS:85, HTML:90, Figma:65, Git:80
+
+# github wird auch für den "Zuletzt auf GitHub"-Abschnitt weiter unten genutzt
+# (Username wird automatisch aus der URL gelesen).
 kontakt_titel: Lass uns reden
 kontakt_text: Du hast was Spannendes? Melde dich gerne per Mail oder über Social.
+email: hello@example.com
+github: https://github.com/
+linkedin: https://linkedin.com/
