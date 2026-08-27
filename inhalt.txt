@@ -1,0 +1,23 @@
+name: Dein Name
+rolle: Fullstack Developer / Designer
+ort: Berlin, DE
+about: Platzhalter für deinen About-Text. 2–3 Sätze, wer du bist, was du baust, was dich interessiert.
+email: hello@example.com
+github: https://github.com/
+linkedin: https://linkedin.com/
+skills: TypeScript, JavaScript, React, Node.js, CSS, HTML, Figma, Git
+
+titel: Portfolio
+meta_beschreibung: Portfolio — Projekte, Skills und Kontakt auf einen Blick.
+
+about_titel: Kurz über mich
+stack_titel: Was ich nutze
+
+projekte_titel: Projekte
+projekte_text: Eine chronologische Übersicht aller Projekte findest du im Zeitstrahl oben. Für die komplette Liste:
+projekte_button: Alle Projekte ansehen →
+
+zeitstrahl_titel: Zeitstrahl
+
+kontakt_titel: Lass uns reden
+kontakt_text: Du hast was Spannendes? Melde dich gerne per Mail oder über Social.

@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Satellite Tools — Orbitale Mechanik &amp; Raketen-Simulation in Python — Hohmann-Transfers, Δv-Berechnung, Startkosten-Optimierung</title>
+  <link rel="stylesheet" href="../../style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container site-header__inner">
+      <a href="../../index.html" class="brand" data-home>Portfolio</a>
+      <nav class="nav" aria-label="Hauptnavigation">
+        <a class="nav__link" href="../../index.html" data-home>Home</a>
+        <button class="theme-toggle" data-theme-toggle aria-label="Theme wechseln">◐</button>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <article class="section container detail">
+      <a class="detail__back" href="../../index.html" data-home>← Zurück zum Portfolio</a>
+      <header class="detail__header">
+        <span class="eyebrow reveal">Solo / Physics Engineering · 2024</span>
+        <h1 class="reveal">Satellite Tools</h1>
+        <p class="hero__title reveal">Orbitale Mechanik &amp; Raketen-Simulation in Python — Hohmann-Transfers, Δv-Berechnung, Startkosten-Optimierung</p>
+        <div class="detail__meta reveal"><span>· Python</span> <span>· NumPy</span> <span>· Orbital Mechanics</span> <span>· Rocket Equation</span> <span>· Tsiolkovsky</span></div>
+        <ul class="skills" aria-label="Tech Stack" style="margin-top: 16px;"><li>Python</li><li>NumPy</li><li>Orbital Mechanics</li><li>Rocket Equation</li><li>Tsiolkovsky</li></ul>
+        <div class="detail__links reveal"><a class="btn btn--primary" href="details.html">Demo ansehen</a><a class="btn btn--ghost" href="https://github.com/" target="_blank" rel="noopener noreferrer">Source</a><a class="btn btn--ghost" href="https://en.wikipedia.org/wiki/Vis-viva_equation" target="_blank" rel="noopener noreferrer">NASA Vis-Viva-Gleichung</a><a class="btn btn--ghost" href="https://de.wikipedia.org/wiki/Raketengrundgleichung" style="width:260px;" target="_blank" rel="noopener noreferrer">Tsiolkovsky-Raketengleichung</a></div>
+      </header>
+      <div class="detail__body reveal" id="description"></div>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer__inner">
+      <span>© 2026 — gebaut mit Vite, HTML & CSS.</span>
+      <ul class="footer__links"><li><a href="https://github.com/" target="_blank" rel="noopener noreferrer">GitHub</a></li><li><a href="https://linkedin.com/" target="_blank" rel="noopener noreferrer">LinkedIn</a></li><li><a href="mailto:hello@example.com">Email</a></li></ul>
+    </div>
+  </footer>
+  <script>
+    (function() {
+      const KEY = 'theme';
+      const root = document.documentElement;
+      const toggle = document.querySelector('[data-theme-toggle]');
+      function apply(theme) {
+        root.setAttribute('data-theme', theme);
+        localStorage.setItem(KEY, theme);
+      }
+      function init() {
+        const saved = localStorage.getItem(KEY);
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        apply(saved || (prefersDark ? 'dark' : 'light'));
+      }
+      toggle?.addEventListener('click', () => {
+        const current = root.getAttribute('data-theme');
+        apply(current === 'dark' ? 'light' : 'dark');
+      });
+      init();
+
+      // Reveal-on-scroll: ohne dieses Observer-Script bleiben .reveal-Elemente
+      // dauerhaft unsichtbar (opacity: 0 aus style.css).
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-visible');
+            observer.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.08, rootMargin: '0px 0px -10% 0px' });
+      document.querySelectorAll('.reveal').forEach((el) => observer.observe(el));
+
+      // file:// Fallback: ohne IntersectionObserver-Support alles sofort zeigen.
+      if (location.protocol === 'file:' || !('IntersectionObserver' in window)) {
+        document.querySelectorAll('.reveal').forEach((el) => el.classList.add('is-visible'));
+      }
+    })();
+  </script>
+</body>
+</html>

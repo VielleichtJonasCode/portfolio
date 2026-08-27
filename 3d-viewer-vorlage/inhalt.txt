@@ -1,0 +1,2 @@
+titel: 3D-Modell-Viewer
+text: Zeigt die Modelle aus dem modelle/-Ordner dieser Seite — drehen, zoomen, verschieben und einzelne Teile ein-/ausblenden. Die Modelldaten stecken fest im HTML, es gibt auf dieser Seite keinerlei Upload- oder Datei-Auswahl-Funktion. Neue Modelle: Datei in modelle/ legen und die Website neu bauen (python3 update_website.py).

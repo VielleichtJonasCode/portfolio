@@ -1,0 +1,79 @@
+title: Satellite Tools
+tagline: Orbitale Mechanik & Raketen-Simulation in Python — Hohmann-Transfers, Δv-Berechnung, Startkosten-Optimierung
+role: Solo / Physics Engineering
+year: 2024
+stack: Python, NumPy, Orbital Mechanics, Rocket Equation, Tsiolkovsky
+repo: https://github.com/
+live:
+featured: true
+timeline: Python-Toolkit für orbitale Mechanik & Raketen-Simulation. Hohmann-Transfers, Δv-Berechnung, Tsiolkovsky-Gleichung, Vis-Viva, 7 reale Raketen
+
+### Beschreibung
+Satellite Tools — Ein Python-Toolkit für orbitale Mechanik und Raketen-Startsimulation.
+
+Berechnet Hohmann-Transfers zwischen zwei Kreisbahnen, inklusive:
+- Δv für beide Brennmanöver (Perigäum & Apogäum)
+- Gesamtes Δv und Transferzeit
+- Neue Orbitparameter nach beliebigem Geschwindigkeitsimpuls
+
+Simuliert Raketenstarts mit reellen Oberstufen:
+- Falcon 9, Ariane 5/6, Saturn V, Atlas V, Soyuz, Electron
+- Tsiolkovsky-Raketengleichung für Treibstoffverbrauch
+- Startkostenberechnung basierend auf Treibstoffpreis pro kg
+- Payload-Kapazität für jede Rakete/Orbit-Kombination
+
+### Technische Neuheiten
+- Saubere Trennung: constants.py (GM, g0), satelite_tools.py (Orbitmechanik), propulsion.py (Raketen), rockets.py (Raketen-Datenbank)
+- Vis-Viva-Gleichung für elliptische Transfers
+- Spezifische Orbitalenergie zur Bestimmung von Flucht- vs. gebundenen Orbits
+- NumPy für numerische Stabilität
+- Modular erweiterbar — neue Raketen per Dictionary hinzufügen
+
+### Anwendungsfälle
+- Mission-Design: Welche Rakete für welchen Orbit? Wie viel Δv brauche ich?
+- Kostenabschätzung: Was kostet der Start von X kg nach GEO?
+- Lehre & Prototyping: Schnelle Iteration ohne STK/GMAT-Overhead
+
+###Beispiel
+Falcon 9, 500 kg Payload, LEO (400 km) → GEO (35.786 km)
+Δv total: ~3.9 km/s | Treibstoff: ~1.8 t | Kosten: ~$6.3M (nur Oberstufen-Treibstoff)
+
+###Architektur
+physics/
+  constants.py      → GM(Erde) = 398600.4418 km³/s², g0 = 9.80665 m/s²
+  satelite_tools.py → Hohmann-Transfer, Velocity-Change, Orbit-Parameter
+  rockets.py        → 7 reale Oberstufen mit ISP, Leermasse, Treibstoff-Preis
+  propulsion.py     → Start-Simulation (Tsiolkovsky + Hohmann + Kosten)
+
+###Nutzung
+```python
+from physics.satelite_tools import *
+from physics.propulsion import start_rocket
+
+# Hohmann Transfer LEO → GEO
+transfer = hohmann_transfer(6771, 42164)  # Radien in km
+# {'delta_v_total': 3894.2, 'transfer_time_hours': 5.26, ...}
+
+# Raketen-Start simulation
+result = start_rocket("falcon_9", payload=500, start_pos=6771, target_orbit=42164, m_prop_initial=107500)
+# {'propellant_used': 1823.4, 'price': 6382000, 'total_Dv': 3894200, ...}
+```
+
+### Roadmap
+- Bi-elliptische Transfers für hohe Δv-Ersparnis
+- Plane-Change-Manöver (Inklination)
+- Lambert-Problem für beliebige Transferzeiten
+- Mehrkörper-Probleme (Patch Conics, Lagrange-Punkte)
+- Web-Interface mit interaktiver Orbit-Visualisierung (Canvas/WebGL)
+
+### Lizenz
+MIT
+
+## Links
+NASA Vis-Viva-Gleichung | https://en.wikipedia.org/wiki/Vis-viva_equation
+Tsiolkovsky-Raketengleichung | https://de.wikipedia.org/wiki/Raketengrundgleichung | 260
+
+## Bilder
+hohmann-transfer.png | Hohmann-Transfer Visualisierung | Hohmann-Transfer zwischen zwei Kreisbahnen
+raketen-simulation.png | Raketen-Simulation Interface | Raketen-Startsimulation mit realen Oberstufen
+ui-overview.png | UI Übersicht des Tools | Übersicht der Benutzeroberfläche mit Parametern

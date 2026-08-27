@@ -1,0 +1,517 @@
+/* ===== Tokens ===== */
+:root {
+  --bg: #ffffff;
+  --bg-muted: #f7f7f5;
+  --fg: #111111;
+  --fg-muted: #6b6b6b;
+  --border: #e7e7e3;
+  --accent: #111111;
+  --accent-fg: #ffffff;
+  --radius: 12px;
+  --radius-lg: 20px;
+  --max-w: 1120px;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+  --t-fast: 120ms;
+  --t-med: 240ms;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+[data-theme='dark'] {
+  --bg: #0b0b0b;
+  --bg-muted: #141414;
+  --fg: #f5f5f5;
+  --fg-muted: #a1a1a1;
+  --border: #232323;
+  --accent: #f5f5f5;
+  --accent-fg: #0b0b0b;
+}
+
+/* ===== Reset ===== */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+img, svg { display: block; max-width: 100%; }
+button { font: inherit; cursor: pointer; }
+a { color: inherit; }
+
+/* Vor JS-Start: alles sichtbar. Verhindert White-Screen,
+   falls JS aus irgendeinem Grund nicht läuft. */
+.no-js .reveal { opacity: 1 !important; transform: none !important; }
+
+/* ===== Base ===== */
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  transition: background var(--t-med) var(--ease), color var(--t-med) var(--ease);
+}
+
+.container {
+  width: 100%;
+  max-width: var(--max-w);
+  margin-inline: auto;
+  padding-inline: clamp(20px, 4vw, 40px);
+}
+
+h1, h2, h3 { line-height: 1.15; letter-spacing: -0.02em; margin: 0; }
+h1 { font-size: clamp(2.2rem, 5vw, 3.6rem); font-weight: 600; }
+h2 { font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 600; }
+h3 { font-size: 1.125rem; font-weight: 600; }
+p  { margin: 0; }
+
+.muted { color: var(--fg-muted); }
+
+/* Focus */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+  html { scroll-behavior: auto; }
+}
+/* ===== Header / Nav ===== */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: color-mix(in oklab, var(--bg) 85%, transparent);
+  backdrop-filter: saturate(180%) blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+
+.site-header__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 64px;
+}
+
+.brand {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+}
+
+.nav { display: flex; align-items: center; gap: 8px; }
+.nav__link {
+  text-decoration: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  color: var(--fg-muted);
+  transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.nav__link:hover,
+.nav__link[aria-current='page'] {
+  color: var(--fg);
+  background: var(--bg-muted);
+}
+
+.theme-toggle {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--fg);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-left: 8px;
+  font-size: 0.9rem;
+  transition: background var(--t-fast) var(--ease);
+}
+.theme-toggle:hover { background: var(--bg-muted); }
+
+/* ===== Sections ===== */
+.section { padding: clamp(64px, 10vw, 120px) 0; }
+.section--tight { padding: clamp(48px, 7vw, 80px) 0; }
+
+.section__title {
+  margin-bottom: 32px;
+}
+
+.eyebrow {
+  display: inline-block;
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  margin-bottom: 16px;
+}
+
+/* ===== Hero ===== */
+.hero { padding: clamp(80px, 14vw, 160px) 0 clamp(40px, 8vw, 80px); }
+.hero__name { margin-bottom: 16px; }
+.hero__title {
+  font-size: clamp(1.4rem, 2.5vw, 2rem);
+  color: var(--fg-muted);
+  font-weight: 400;
+  margin-bottom: 24px;
+  max-width: 38ch;
+}
+.hero__cta { display: flex; gap: 12px; flex-wrap: wrap; }
+
+/* ===== Buttons ===== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 18px;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  text-decoration: none;
+  border: 1px solid transparent;
+  transition: transform var(--t-fast) var(--ease),
+              background var(--t-fast) var(--ease),
+              color var(--t-fast) var(--ease);
+}
+.btn:active { transform: translateY(1px); }
+.btn--primary { background: var(--accent); color: var(--accent-fg); }
+.btn--primary:hover { opacity: 0.88; }
+.btn--ghost { background: transparent; color: var(--fg); border-color: var(--border); }
+.btn--ghost:hover { background: var(--bg-muted); }
+
+/* ===== About ===== */
+.about__grid {
+  display: grid;
+  gap: clamp(24px, 4vw, 48px);
+  grid-template-columns: 1fr;
+}
+@media (min-width: 800px) {
+  .about__grid { grid-template-columns: 1fr 2fr; }
+}
+.about__copy { max-width: 60ch; }
+
+/* ===== Skills ===== */
+.skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.skills li {
+  border: 1px solid var(--border);
+  background: var(--bg-muted);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.9rem;
+  color: var(--fg-muted);
+}
+
+/* ===== Projects ===== */
+.projects__list {
+  display: grid;
+  gap: 16px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+@media (min-width: 700px) {
+  .projects__list { grid-template-columns: repeat(2, 1fr); gap: 20px; }
+}
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  text-decoration: none;
+  color: inherit;
+  transition: transform var(--t-med) var(--ease),
+              border-color var(--t-med) var(--ease),
+              background var(--t-med) var(--ease);
+}
+.card:hover {
+  transform: translateY(-2px);
+  border-color: var(--fg-muted);
+  background: var(--bg-muted);
+}
+.card--featured { grid-column: 1 / -1; }
+
+.card__cover {
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: var(--bg-muted);
+  border-bottom: 1px solid var(--border);
+}
+.card__cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform var(--t-med) var(--ease);
+}
+.card:hover .card__cover img { transform: scale(1.03); }
+
+.card__body {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.card__year {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+}
+.card__title { margin-bottom: 0; }
+.card__tagline { color: var(--fg-muted); }
+.card__stack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  padding: 0;
+  margin-top: 8px;
+}
+.card__stack li {
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+  color: var(--fg-muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 8px;
+}
+.card__arrow {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  background: color-mix(in oklab, var(--bg) 90%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  opacity: 0;
+  transform: translate(-4px, 4px);
+  transition: opacity var(--t-med) var(--ease),
+              transform var(--t-med) var(--ease);
+}
+.card:hover .card__arrow {
+  opacity: 1;
+  transform: translate(0, 0);
+}
+
+/* ===== Gallery ===== */
+.gallery {
+  display: grid;
+  gap: 12px;
+  /* auto-fit statt auto-fill: leere Spalten kollabieren, vorhandene Bilder
+     füllen die Breite statt freie Slots übrig zu lassen (z.B. bei nur 1 Bild). */
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+.gallery__item {
+  display: block;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-muted);
+}
+.gallery__item img,
+.gallery__item video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform var(--t-med) var(--ease);
+}
+.gallery__item:hover img { transform: scale(1.04); }
+/* Video beim Hover nicht mitskalieren — die Steuerelemente sollen stabil klickbar bleiben. */
+.gallery__item video { background: #000; }
+
+/* ===== Files ===== */
+.files {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.files a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  text-decoration: none;
+  transition: background var(--t-fast) var(--ease),
+              border-color var(--t-fast) var(--ease);
+}
+.files a:hover {
+  background: var(--bg-muted);
+  border-color: var(--fg-muted);
+}
+.files__name {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+}
+.files__icon {
+  color: var(--fg-muted);
+}
+
+/* ===== Project Detail ===== */
+.detail__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg-muted);
+  text-decoration: none;
+  margin-bottom: 32px;
+  font-size: 0.95rem;
+}
+.detail__back:hover { color: var(--fg); }
+.detail__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  color: var(--fg-muted);
+  font-size: 0.9rem;
+  font-family: var(--font-mono);
+  margin-bottom: 24px;
+}
+.detail__body {
+  max-width: 65ch;
+  margin-top: 40px;
+  white-space: pre-line;
+}
+
+/* Section-Blöcke innerhalb der Projektbeschreibung optisch trennen */
+.section-block {
+  padding-top: 32px;
+  margin-top: 32px;
+  border-top: 1px solid var(--border);
+}
+.section-block:first-child {
+  padding-top: 0;
+  margin-top: 0;
+  border-top: none;
+}
+.section-title {
+  font-size: 1.05rem;
+  margin-bottom: 16px;
+}
+.section-content > *:not(:last-child) {
+  margin-bottom: 12px;
+}
+.section-content br {
+  display: none; /* Absätze/Listen sorgen bereits für Abstand */
+}
+.section-content ul {
+  margin: 0 0 12px;
+  padding-left: 1.2em;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.section-content li {
+  color: var(--fg-muted);
+}
+.section-content pre {
+  background: var(--bg-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+.desc-paragraph { margin: 0; }
+.detail__links { display: flex; gap: 12px; margin-top: 32px; flex-wrap: wrap; }
+
+/* ===== Contact ===== */
+.contact {
+  border-top: 1px solid var(--border);
+}
+.contact__lede {
+  color: var(--fg-muted);
+  max-width: 50ch;
+  margin-bottom: 32px;
+}
+.contact__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.contact__list a {
+  text-decoration: none;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  transition: background var(--t-fast) var(--ease),
+              border-color var(--t-fast) var(--ease);
+}
+.contact__list a:hover {
+  background: var(--bg-muted);
+  border-color: var(--fg-muted);
+}
+
+/* ===== Footer ===== */
+.site-footer {
+  border-top: 1px solid var(--border);
+  padding: 32px 0;
+  color: var(--fg-muted);
+  font-size: 0.85rem;
+}
+.footer__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.footer__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.footer__links a {
+  color: var(--fg-muted);
+  text-decoration: none;
+}
+.footer__links a:hover { color: var(--fg); }
+
+/* ===== Reveal animation ===== */
+.reveal {
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 600ms var(--ease), transform 600ms var(--ease);
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Wenn JS läuft und ein Element fälschlich "hängenbleibt":
+   nach kurzem Timeout alles sichtbar machen, was noch unsichtbar ist. */
+.js-fallback .reveal {
+  opacity: 1;
+  transform: none;
+}

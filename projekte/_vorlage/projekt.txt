@@ -1,0 +1,62 @@
+# Vorlage für ein neues Projekt — diesen ganzen Ordner "_vorlage" kopieren,
+# umbenennen (z.B. "Mein-Projekt") und in der Kopie diese Datei ausfüllen.
+# Ordner mit "_" am Anfang werden von update_website.py ignoriert, die Kopie
+# mit normalem Namen taucht danach automatisch auf portfolio.html und
+# alle-projekte.html auf, sobald "python3 update_website.py" läuft.
+# Bilder unten im Format "dateiname.png Alt-Text Bildunterschrift", getrennt
+# durch senkrechte Striche; die Datei muss im bilder/-Ordner dieses Projekts liegen.
+#
+# 3D-Live-Ansicht: STL/OBJ/DAE/URDF-Dateien in einen "modelle/"-Ordner in diesem
+# Projektordner legen (Ordner ggf. selbst anlegen) — beim nächsten
+# "python3 update_website.py" kopiert das Skript AUTOMATISCH den Viewer aus
+# "portfolio vorlagen/3d-viewer/" nach 3d-viewer/ in diesem Projektordner und
+# bettet die Modelle darin ein (kein Upload zur Laufzeit, kein Server, nichts
+# manuell kopieren). Danach unten bei "3d-viewer:" den Pfad
+# "3d-viewer/3d-viewer.html" eintragen, damit der Button erscheint.
+# Überschrift/Text im Viewer kommen automatisch von title/tagline hier — für
+# eigenen Wortlaut optional viewer_titel:/viewer_text: ergänzen.
+#
+# Zusätzliche Buttons neben Source/Live/3D-Ansicht: weiter unten im Abschnitt
+# "## Links" eine Zeile pro Button im Format "Beschriftung Senkrechter-Strich
+# URL", optional gefolgt von zwei weiteren mit Senkrechten-Strichen
+# abgetrennten Zahlen für feste Breite und Höhe in Pixeln. Zeilen mit "#" am
+# Anfang werden dabei ignoriert (zum Testen/Auskommentieren).
+# Siehe projekte/Satelite-Tools/projekt.txt für ein aktives Beispiel.
+#
+# Button MITTEN im Beschreibungstext (### Beschreibung usw., nicht in einem
+# ##-Abschnitt): "Button:Beschriftung:URL" irgendwo in einem Satz/Listenpunkt
+# schreiben — wird automatisch zum echten Button an genau dieser Stelle. Die
+# URL darf dabei kein Leerzeichen enthalten. Für einen normalen Text-Link
+# (kein Button, nur unterstrichenes Wort) stattdessen [Beschriftung](URL)
+# schreiben.
+title: Projekt-Titel
+tagline: Kurzer Ein-Satz-Teaser für Karten und Zeitstrahl.
+role: Solo / Rolle
+year: 2026
+stack: Sprache/Framework, Tool, Tool
+repo: https://github.com/
+live:
+3d-viewer:
+featured: false
+timeline: Kurzbeschreibung für den Zeitstrahl auf der Startseite (1-2 Sätze).
+
+### Beschreibung
+Worum geht es in dem Projekt? 2-4 Sätze Überblick.
+
+- Wichtiges Feature 1
+- Wichtiges Feature 2
+- Wichtiges Feature 3
+
+### Technische Neuheiten
+- Was ist technisch interessant oder ungewöhnlich gelöst?
+
+### Was ich gelernt habe
+- Was hast du dabei gelernt?
+
+## Links
+# Zeilen, die mit "#" beginnen, werden ignoriert (Kommentar/Test) — so:
+# Testlink | https://example.com | 200 | 48
+# Zum Aktivieren einfach das "# " am Zeilenanfang entfernen.
+
+## Bilder
+beispiel.png | Alt-Text | Bildunterschrift
