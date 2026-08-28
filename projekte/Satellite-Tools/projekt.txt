@@ -1,9 +1,7 @@
-title: Satellite Tools
-tagline: Orbitale Mechanik & Raketen-Simulation in Python — Hohmann-Transfers, Δv-Berechnung, Startkosten-Optimierung
-role: Solo / Physics Engineering
-year: 2024
-stack: Python, NumPy, Orbital Mechanics, Rocket Equation, Tsiolkovsky
-repo: https://github.com/
+tagline: Webinterface, das wichtige Funktionen (wie den Hohmann-Transfer, Tsiolkovsky-Gleichung etc.) einfach demonstriert.
+year: 2026
+stack: Python, NumPy, Orbital Mechanics, Rocket Equation, Tsiolkovsky, Hohmann
+repo: 
 live:
 featured: true
 timeline: Python-Toolkit für orbitale Mechanik & Raketen-Simulation. Hohmann-Transfers, Δv-Berechnung, Tsiolkovsky-Gleichung, Vis-Viva, 7 reale Raketen

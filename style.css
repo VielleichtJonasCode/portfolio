@@ -404,6 +404,170 @@ p  { margin: 0; }
   font-family: var(--font-mono);
 }
 
+/* ===== LeetCode ===== */
+.leetcode-card {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(20px, 3vw, 28px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: clamp(24px, 3.2vw, 38px);
+  text-decoration: none;
+  color: inherit;
+  transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.leetcode-card:hover { background: var(--bg-muted); border-color: var(--fg-muted); }
+
+.leetcode-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  padding-bottom: clamp(18px, 3vw, 26px);
+  border-bottom: 1px solid var(--border);
+}
+.leetcode-card__headline { display: flex; align-items: baseline; gap: 12px; }
+.leetcode-card__num {
+  font-size: clamp(2.6rem, 6vw, 3.6rem);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-family: var(--font-mono);
+}
+.leetcode-card__unit { display: flex; flex-direction: column; gap: 3px; }
+.leetcode-card__unit-main { font-size: 1rem; font-weight: 600; }
+.leetcode-card__rank { font-size: 0.8rem; color: var(--fg-muted); font-family: var(--font-mono); }
+.leetcode-card__profile {
+  font-size: 0.8rem;
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+.leetcode-card:hover .leetcode-card__profile { color: var(--fg); }
+
+/* Verteilungs-Leiste — Anteil Easy/Medium/Hard an den gelösten Aufgaben */
+.leetcode-split {
+  display: flex;
+  gap: 3px;
+  height: 12px;
+}
+.leetcode-split__seg { min-width: 6px; border-radius: 999px; }
+.leetcode-split__seg--easy   { background: #2fb787; }
+.leetcode-split__seg--medium { background: #e6a23c; }
+.leetcode-split__seg--hard   { background: #e05c5c; }
+.leetcode-split__seg--empty  { background: var(--border); }
+
+/* Aufschlüsselung je Schwierigkeit */
+.leetcode-diffs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.leetcode-diff {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.leetcode-diff__head { display: flex; align-items: center; gap: 8px; }
+.leetcode-diff__dot { width: 8px; height: 8px; border-radius: 999px; flex: none; }
+.leetcode-diff__dot--easy   { background: #2fb787; }
+.leetcode-diff__dot--medium { background: #e6a23c; }
+.leetcode-diff__dot--hard   { background: #e05c5c; }
+.leetcode-diff__name {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+.leetcode-diff__body { display: flex; align-items: baseline; gap: 6px; }
+.leetcode-diff__count { font-family: var(--font-mono); font-size: 1.6rem; font-weight: 600; }
+.leetcode-diff__total { font-family: var(--font-mono); font-size: 0.78rem; color: var(--fg-muted); }
+
+/* Sekundär-Kennzahlen */
+.leetcode-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+.leetcode-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  background: var(--bg-muted);
+  border-radius: var(--radius);
+}
+.leetcode-stat__num {
+  font-family: var(--font-mono);
+  font-size: 1.4rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.leetcode-stat__label { font-size: 0.74rem; color: var(--fg-muted); letter-spacing: 0.02em; }
+
+.leetcode-group { display: flex; flex-direction: column; gap: 14px; }
+
+/* Sprach-Chips */
+.leetcode-langs { display: flex; flex-wrap: wrap; gap: 8px; }
+.leetcode-lang {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.8rem;
+}
+.leetcode-lang b { font-family: var(--font-mono); font-weight: 600; color: var(--fg-muted); }
+
+/* Aktivitäts-Raster */
+.leetcode-cal { display: flex; flex-direction: column; gap: 10px; max-width: 760px; }
+.leetcode-cal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  font-size: 0.74rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+.leetcode-cal__scale {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.leetcode-cal__scale i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+.leetcode-cal__grid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(7, 1fr);
+  grid-auto-columns: 1fr;
+  gap: 3px;
+  width: 100%;
+  aspect-ratio: 26 / 7;
+}
+.leetcode-cal__cell { border-radius: 3px; min-width: 0; }
+.leetcode-cal__cell--future { opacity: 0.45; }
+.leetcode-cal [data-l="0"] { background: var(--border); }
+.leetcode-cal [data-l="1"] { background: color-mix(in oklab, #2fb787 25%, var(--border)); }
+.leetcode-cal [data-l="2"] { background: color-mix(in oklab, #2fb787 45%, var(--border)); }
+.leetcode-cal [data-l="3"] { background: color-mix(in oklab, #2fb787 70%, var(--border)); }
+.leetcode-cal [data-l="4"] { background: #2fb787; }
+
+@media (max-width: 560px) {
+  .leetcode-diffs { grid-template-columns: 1fr; }
+  .leetcode-stats { grid-template-columns: repeat(2, 1fr); }
+}
+
 /* ===== Projekt-Suche ===== */
 .search-box {
   position: relative;
@@ -539,23 +703,42 @@ p  { margin: 0; }
 }
 
 /* ===== Gallery ===== */
+/* Immer drei Bilder/Videos pro Reihe; ab dem 4. Element beginnt automatisch
+   eine neue Reihe. Auf schmalen Screens 2 bzw. 1 pro Reihe. */
 .gallery {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: grid;
-  gap: 12px;
-  /* auto-fit statt auto-fill: leere Spalten kollabieren, vorhandene Bilder
-     füllen die Breite statt freie Slots übrig zu lassen (z.B. bei nur 1 Bild). */
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  grid-template-columns: repeat(3, 1fr);
+}
+@media (max-width: 720px) {
+  .gallery { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 460px) {
+  .gallery { grid-template-columns: 1fr; }
 }
 .gallery__item {
-  display: block;
-  aspect-ratio: 4 / 3;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   border-radius: var(--radius);
   border: 1px solid var(--border);
   background: var(--bg-muted);
 }
+.gallery__media {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+}
+/* absolut im 4:3-Rahmen — kein Bild/Video kann die Kachelhöhe verzerren,
+   egal welches Seitenverhältnis die Datei selbst hat. */
 .gallery__item img,
 .gallery__item video {
+  position: absolute;
+  inset: 0;
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -564,6 +747,13 @@ p  { margin: 0; }
 .gallery__item:hover img { transform: scale(1.04); }
 /* Video beim Hover nicht mitskalieren — die Steuerelemente sollen stabil klickbar bleiben. */
 .gallery__item video { background: #000; }
+.gallery__caption {
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--fg-muted);
+}
 
 /* ===== Files ===== */
 .files {
@@ -710,6 +900,19 @@ p  { margin: 0; }
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
+}
+.footer__text-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.footer__translation-note {
+  font-size: 0.78rem;
+  color: var(--fg-muted);
+  font-style: italic;
+}
+.footer__translation-note:empty {
+  display: none;
 }
 .footer__links {
   display: flex;

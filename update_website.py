@@ -19,6 +19,7 @@ GitHub Pages automatisch als Startseite ausliefert).
 <h2 class="section-title">...</h2> gerendert.
 """
 import base64
+import datetime
 import json
 import math
 import re
@@ -86,12 +87,21 @@ def parse_checklist_section(text: str, header: str) -> list:
 
 
 def parse_timeline_section(text: str) -> list:
-    """Sucht '## Zeitstrahl' in inhalt.txt und parst die Zeilen darunter im
-    Format 'Titel | Jahr | Beschreibung | Projektordner (optional)'. Der
+    """Sucht '## Zeitstrahl' in inhalt.txt und parst die Zeilen darunter. Der
     Zeitstrahl wird NICHT automatisch aus allen Projekten gebaut — nur Zeilen,
-    die hier explizit eingetragen sind, erscheinen. Der Link wird automatisch
-    gesucht: stimmt 'Projektordner' mit einem Ordner unter projekte/ überein,
-    wird automatisch dorthin verlinkt; sonst erscheint der Eintrag ohne Link."""
+    die hier explizit stehen, erscheinen (in dieser Reihenfolge).
+
+    Format pro Zeile:
+    - Für ein echtes Projekt reicht der ORDNERNAME allein (z.B. 'Satellite-Tools').
+      Jahr, Kurzbeschreibung und der Link werden dann automatisch aus dessen
+      projekt.txt gezogen ('year' bzw. 'timeline', fällt auf 'tagline' zurück) —
+      nichts doppelt pflegen.
+    - Für einen Meilenstein OHNE eigene Projektseite: 'Freitext-Titel | Jahr'.
+    - Optionale Felder je Zeile: 'Titel | Jahr | Projektordner'. Ein hier
+      angegebenes Jahr wird nur benutzt, wenn kein Projektordner passt oder
+      dessen projekt.txt kein 'year' hat; sonst gewinnt das Jahr aus dem Projekt.
+    - Passt weder Feld 3 noch der Titel zu einem Ordner unter projekte/,
+      erscheint der Eintrag ohne Link (reiner Meilenstein)."""
     m = re.search(r'^##\s*Zeitstrahl\s*$', text, re.MULTILINE)
     if not m:
         return []
@@ -101,20 +111,29 @@ def parse_timeline_section(text: str) -> list:
         line = line.strip()
         if not line or (line.startswith("#") and not line.startswith("##")):
             continue  # Leerzeile oder Kommentar — weiter im Abschnitt.
-        if line.startswith("##") or "|" not in line:
-            # Nächster '##'-Abschnitt oder eine "fremde" Zeile (z.B. wieder
-            # normale schlüssel: wert-Felder) — Zeitstrahl-Abschnitt endet hier.
+        if line.startswith("##") or re.match(r'^[A-Za-z_][\w.-]*:\s', line):
+            # Nächster '##'-Abschnitt oder wieder eine normale 'schlüssel: wert'-
+            # Zeile — der Zeitstrahl-Abschnitt endet hier.
             break
         parts = [p.strip() for p in line.split("|")]
-        titel = parts[0] if len(parts) > 0 else ""
+        titel = parts[0] if parts else ""
         if not titel:
             continue
         jahr = parts[1] if len(parts) > 1 else ""
-        beschreibung = parts[2] if len(parts) > 2 else ""
-        projektordner = parts[3] if len(parts) > 3 else ""
+        projektordner = parts[2] if len(parts) > 2 else ""
+        if not projektordner:
+            # Kein 3. Feld: Titel selbst als Ordnername probieren (Titel ==
+            # Ordnername ist der Normalfall).
+            projektordner = titel
         href = ""
+        beschreibung = ""
         if projektordner and (BASE / projektordner).is_dir():
             href = f"projekte/{projektordner}/index.html"
+            project_meta = load_project(BASE / projektordner)
+            beschreibung = project_meta.get("timeline") or project_meta.get("tagline", "")
+            # Jahr automatisch aus der projekt.txt; nur wenn das Projekt keins
+            # angibt, bleibt ein hier eingetragenes Jahr als Rückfall stehen.
+            jahr = project_meta.get("year", "") or jahr
         entries.append({"title": titel, "year": jahr, "short_description": beschreibung, "href": href})
     return entries
 
@@ -148,6 +167,120 @@ def fetch_github_repos(username: str, limit: int = 4) -> list:
         }
         for r in data[:limit]
     ]
+
+
+def fetch_leetcode_stats(username: str) -> dict:
+    """Holt von der öffentlichen (inoffiziellen) GraphQL-API von leetcode.com
+    (kein Key nötig) alles, was der LeetCode-Abschnitt der Startseite anzeigt:
+    gelöste Aufgaben je Schwierigkeit, Gesamt-Ranking, Annahmequote, aktuelle
+    Serie, aktive Tage, genutzte Sprachen und den Einsende-Kalender (für das
+    Aktivitäts-Raster). Bei Netzwerkfehlern oder unerwarteter Antwort wird {}
+    zurückgegeben — die Website baut dann einfach ohne diesen Abschnitt weiter.
+    Einzelne fehlende Felder sind unkritisch: der Renderer blendet sie aus."""
+    if not username:
+        return {}
+    query = {
+        "query": (
+            "query userStats($username: String!) {"
+            " allQuestionsCount { difficulty count }"
+            " matchedUser(username: $username) {"
+            "   username"
+            "   profile { ranking }"
+            "   submitStatsGlobal {"
+            "     acSubmissionNum { difficulty count submissions }"
+            "     totalSubmissionNum { difficulty count submissions }"
+            "   }"
+            "   languageProblemCount { languageName problemsSolved }"
+            "   userCalendar { streak totalActiveDays submissionCalendar }"
+            " } }"
+        ),
+        "variables": {"username": username},
+    }
+    try:
+        req = urllib.request.Request(
+            "https://leetcode.com/graphql",
+            data=json.dumps(query).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "User-Agent": "portfolio-build-script",
+                "Referer": f"https://leetcode.com/{urllib.parse.quote(username)}/",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as e:
+        print(f"    ! LeetCode-Stats konnten nicht geladen werden: {e}")
+        return {}
+    payload = data or {}
+    matched = payload.get("data", {}).get("matchedUser")
+    if not matched:
+        print(f"    ! LeetCode-User '{username}' nicht gefunden.")
+        return {}
+    stats_global = matched.get("submitStatsGlobal") or {}
+
+    def _by_difficulty(entries: list) -> dict:
+        out = {"Easy": 0, "Medium": 0, "Hard": 0, "All": 0}
+        for entry in entries or []:
+            diff = entry.get("difficulty")
+            if diff in out:
+                out[diff] = entry.get("count", 0)
+        return out
+
+    counts = _by_difficulty(stats_global.get("acSubmissionNum"))
+    # Gesamtzahl der auf LeetCode existierenden Aufgaben je Schwierigkeit —
+    # nur noch als kleiner Kontext ("/ 961") neben der gelösten Zahl.
+    totals = _by_difficulty(payload.get("data", {}).get("allQuestionsCount"))
+
+    # Annahmequote = angenommene Einsendungen / alle Einsendungen (wie im
+    # LeetCode-Profil). submissions (nicht count) zählt jede Einsendung.
+    def _all_submissions(entries: list) -> int:
+        for entry in entries or []:
+            if entry.get("difficulty") == "All":
+                return entry.get("submissions", 0) or 0
+        return 0
+
+    accepted_subs = _all_submissions(stats_global.get("acSubmissionNum"))
+    total_subs = _all_submissions(stats_global.get("totalSubmissionNum"))
+    acceptance = (accepted_subs / total_subs * 100) if total_subs else None
+
+    languages = sorted(
+        (
+            (entry.get("languageName", ""), entry.get("problemsSolved", 0))
+            for entry in (matched.get("languageProblemCount") or [])
+            if entry.get("problemsSolved", 0) > 0 and entry.get("languageName")
+        ),
+        key=lambda pair: pair[1],
+        reverse=True,
+    )
+
+    cal_raw = matched.get("userCalendar") or {}
+    calendar: dict = {}
+    try:
+        for ts, num in json.loads(cal_raw.get("submissionCalendar") or "{}").items():
+            day = datetime.datetime.fromtimestamp(
+                int(ts), datetime.timezone.utc
+            ).date().isoformat()
+            calendar[day] = calendar.get(day, 0) + int(num)
+    except (ValueError, TypeError, json.JSONDecodeError):
+        calendar = {}
+
+    return {
+        "username": matched.get("username", username),
+        "ranking": (matched.get("profile") or {}).get("ranking"),
+        "easy": counts["Easy"],
+        "medium": counts["Medium"],
+        "hard": counts["Hard"],
+        "total": counts["All"],
+        "easy_total": totals["Easy"],
+        "medium_total": totals["Medium"],
+        "hard_total": totals["Hard"],
+        "all_total": totals["All"],
+        "acceptance": acceptance,
+        "streak": cal_raw.get("streak") or 0,
+        "active_days": cal_raw.get("totalActiveDays") or 0,
+        "languages": languages,
+        "calendar": calendar,
+    }
 
 
 def render_footer_links_html(site: dict) -> str:
@@ -236,6 +369,12 @@ def html_escape(text: str) -> str:
 
 
 _translation_cache = None
+# Wird beim ersten API-Fehschlag (Netzwerk, Rate-Limit/Tageslimit) auf True
+# gesetzt: verhindert, dass für JEDEN weiteren Text im selben Build-Lauf
+# erneut die API angefragt und dieselbe Fehlermeldung wiederholt wird. Beim
+# nächsten "python3 update_website.py" wird automatisch wieder normal
+# versucht (der Schalter lebt nur innerhalb eines Laufs).
+_translation_disabled = False
 
 
 def _load_translation_cache() -> dict:
@@ -264,8 +403,12 @@ def translate_text(text: str, target_lang: str) -> str:
     """Übersetzt eine einzelne Zeile/einen Satz per MyMemory-API (kostenlos,
     kein Key). Ergebnisse werden lokal gecacht — nur neuer/geänderter Text
     verursacht einen echten API-Aufruf. Schlägt die Übersetzung fehl (Netzwerk,
-    Rate-Limit, leerer Text), wird der deutsche Originaltext zurückgegeben,
-    damit die Seite nie kaputtgeht."""
+    Rate-Limit/Tageslimit, leerer Text), wird der deutsche Originaltext
+    zurückgegeben, damit die Seite nie kaputtgeht — der Fehlschlag wird dabei
+    NICHT gecacht, damit beim nächsten Build (z.B. nach Ablauf des
+    Tageslimits) automatisch erneut ein echter Übersetzungsversuch passiert,
+    statt für immer beim deutschen Text hängen zu bleiben."""
+    global _translation_disabled
     text = text.strip()
     if not text:
         return text
@@ -273,8 +416,9 @@ def translate_text(text: str, target_lang: str) -> str:
     key = f"{target_lang}:{text}"
     if key in cache:
         return cache[key]
+    if _translation_disabled:
+        return text
 
-    translated = text
     try:
         params = urllib.parse.urlencode({"q": text[:490], "langpair": f"de|{target_lang}"})
         url = f"https://api.mymemory.translated.net/get?{params}"
@@ -285,12 +429,13 @@ def translate_text(text: str, target_lang: str) -> str:
         # <bx id="2"/> usw.) — das ist kein echtes HTML, nur Tag-Reste, raus damit.
         candidate = re.sub(r'</?g[^>]*>|<[a-z]{2}\s+id="\d+"\s*/>', '', candidate).strip()
         if candidate and "MYMEMORY WARNING" not in candidate.upper():
-            translated = candidate
+            cache[key] = candidate
+            return candidate
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as e:
-        print(f"    ! Übersetzung ({target_lang}) fehlgeschlagen, behalte Deutsch: {e}")
+        print(f"    ! Übersetzung fehlgeschlagen ({e}) — überspringe alle weiteren Übersetzungen für diesen Build, behalte Deutsch (wird beim nächsten Build erneut versucht).")
+        _translation_disabled = True
 
-    cache[key] = translated
-    return translated
+    return text
 
 
 def translate_description(text: str, target_lang: str) -> str:
@@ -395,7 +540,7 @@ def parse_description(text: str) -> str:
     return html
 
 
-def parse_project_file(path: Path, fallback_title: str = "") -> dict:
+def parse_project_file(path: Path, folder_name: str = "") -> dict:
     """
     Parst eine projekt.txt: Kopfbereich mit 'schlüssel: wert'-Zeilen,
     danach (durch eine Leerzeile getrennt) die Beschreibung mit
@@ -412,10 +557,15 @@ def parse_project_file(path: Path, fallback_title: str = "") -> dict:
     Innerhalb der Beschreibung selbst (Absätze/Listenpunkte) wird zusätzlich
     [Beschriftung](URL) als Inline-Link erkannt, lässt sich also frei zwischen den
     Text packen statt nur als Button oben zu erscheinen.
+
+    Der angezeigte Projekt-Titel ist IMMER der Ordnername (folder_name) — er
+    wird überall verwendet (Startseite, Übersicht, Projektseite, 3D-Viewer).
+    Ein 'title:'-Feld in der projekt.txt gibt es nicht mehr; steht dort eines,
+    wird es ignoriert.
     """
     if not path.exists():
         return {
-            "title": fallback_title,
+            "title": folder_name,
             "tagline": "", "role": "", "year": "", "stack": [],
             "links": {"repo": "", "live": "", "3d-viewer": ""}, "featured": False,
             "timeline": "", "description": "", "images": [], "files": [], "custom_links": [],
@@ -488,7 +638,7 @@ def parse_project_file(path: Path, fallback_title: str = "") -> dict:
     featured = kv.get("featured", "").strip().lower() in ("true", "1", "yes", "ja")
 
     return {
-        "title": kv.get("title", fallback_title),
+        "title": folder_name,
         "tagline": kv.get("tagline", ""),
         "role": kv.get("role", ""),
         "year": kv.get("year", ""),
@@ -509,18 +659,22 @@ def parse_project_file(path: Path, fallback_title: str = "") -> dict:
 
 def load_project(project_dir: Path) -> dict:
     """Liest projekt.txt aus dem Projektordner (die einzige Textdatei mit
-    allen Texten, Überschriften, Links und Bildern dieses Projekts)."""
-    return parse_project_file(project_dir / PROJECT_FILE_NAME, fallback_title=project_dir.name)
+    allen Texten, Überschriften, Links und Bildern dieses Projekts). Der
+    angezeigte Projekt-Titel ist immer der Ordnername."""
+    return parse_project_file(project_dir / PROJECT_FILE_NAME, folder_name=project_dir.name)
 
 
 VIDEO_EXTENSIONS = {"mp4", "webm", "mov", "m4v", "ogv"}
 
 
 def render_gallery(images: list) -> str:
-    """Rendert die Bilder-/Video-Galerie als <li>-Liste.
+    """Rendert die Bilder-/Video-Galerie als <li>-Liste (im CSS drei pro Reihe,
+    danach Zeilenumbruch).
 
     Einträge mit einer Video-Dateiendung (mp4/webm/mov/m4v/ogv) werden als
-    abspielbares <video controls> gerendert, alle anderen als <img>."""
+    abspielbares <video controls> gerendert, alle anderen als <img>. Die
+    Bildunterschrift (das 3. Feld je Zeile im ## Bilder-Abschnitt) erscheint —
+    sofern gesetzt — unter dem Bild bzw. Video."""
     if not images:
         return ""
     items = []
@@ -539,12 +693,12 @@ def render_gallery(images: list) -> str:
         else:
             media = f'<img class="gallery__image" src="bilder/{file}" alt="{alt}" loading="lazy">'
 
+        caption_html = f'<div class="gallery__caption">{caption}</div>' if caption else ''
         items.append(
             f'<li class="gallery__item">'
-            f'{media}'
-            f'<div class="gallery__caption">'
-            f'<div class="gallery__caption-title">{caption or alt}</div>'
-            f'</div></li>'
+            f'<div class="gallery__media">{media}</div>'
+            f'{caption_html}'
+            f'</li>'
         )
     return ''.join(items)
 
@@ -684,16 +838,15 @@ def build_project_index(project_dir: Path) -> str:
     links_html = render_links_html(meta, project_dir)
 
     eyebrow = html_escape(f"{meta.get('role', '')} · {meta.get('year', '')}".strip(" ·"))
-    title = html_escape(meta.get("title", project_dir.name))
+    title = html_escape(meta["title"])  # immer der Ordnername
     tagline = html_escape(raw_tagline)
-    stack_html = " ".join(f"<span>· {html_escape(s)}</span>" for s in meta.get("stack", []))
     skills_html = "".join(f"<li>{html_escape(s)}</li>" for s in meta.get("stack", []))
     lang_switch = lang_switch_html()
     i18n_script_data = i18n_json([
         "nav_home", "brand_portfolio", "back_to_portfolio", "demo_button",
         "source_button", "live_button", "3d_button", "insights_eyebrow",
         "images_heading", "downloads_eyebrow", "files_heading", "footer_text",
-        "github_label", "linkedin_label", "email_label",
+        "github_label", "linkedin_label", "email_label", "translation_note",
     ])
 
     template = """<!DOCTYPE html>
@@ -723,7 +876,6 @@ def build_project_index(project_dir: Path) -> str:
         <span class="eyebrow reveal">{eyebrow}</span>
         <h1 class="reveal">{title}</h1>
         {tagline_i18n_html}
-        <div class="detail__meta reveal">{stack_html}</div>
         <ul class="skills" aria-label="Tech Stack" style="margin-top: 16px;">{skills_html}</ul>
         <div class="detail__links reveal">{links_html}</div>
       </header>
@@ -733,7 +885,10 @@ def build_project_index(project_dir: Path) -> str:
 
   <footer class="site-footer">
     <div class="container footer__inner">
-      <span data-i18n="footer_text" data-i18n-default="© 2026 — gebaut mit Vite, HTML &amp; CSS.">© 2026 — gebaut mit Vite, HTML &amp; CSS.</span>
+      <div class="footer__text-group">
+        <span data-i18n="footer_text" data-i18n-default="© 2026 — gebaut mit Vite, HTML &amp; CSS.">© 2026 — gebaut mit Vite, HTML &amp; CSS.</span>
+        {translation_note_html}
+      </div>
       <ul class="footer__links">{footer_links_html}</ul>
     </div>
   </footer>
@@ -784,7 +939,6 @@ def build_project_index(project_dir: Path) -> str:
         title=title,
         tagline=tagline,
         eyebrow=eyebrow,
-        stack_html=stack_html,
         skills_html=skills_html,
         tagline_i18n_html=tagline_i18n_html,
         body_i18n_html=body_i18n_html,
@@ -792,6 +946,7 @@ def build_project_index(project_dir: Path) -> str:
         gallery_section=gallery_section,
         links_html=links_html,
         footer_links_html=footer_links_html,
+        translation_note_html=TRANSLATION_NOTE_HTML,
         lang_switch=lang_switch,
         lang_switch_script=LANG_SWITCH_SCRIPT,
         i18n_script_data=i18n_script_data,
@@ -839,6 +994,14 @@ UI_STRINGS = {
         "es": "© 2026 — construido con HTML y CSS.",
         "fr": "© 2026 — conçu avec HTML et CSS.",
     },
+    # Hinweis in der Fußzeile, NUR auf übersetzten (nicht-deutschen) Sprachen
+    # sichtbar — auf Deutsch bleibt data-i18n-default leer, siehe
+    # TRANSLATION_NOTE_HTML unten.
+    "translation_note": {
+        "en": "This page was translated automatically using AI.",
+        "es": "Esta página fue traducida automáticamente con IA.",
+        "fr": "Cette page a été traduite automatiquement par IA.",
+    },
     "all_work_eyebrow": {"en": "All work", "es": "Todos los trabajos", "fr": "Tous les travaux"},
     "all_projects_heading": {"en": "All projects", "es": "Todos los proyectos", "fr": "Tous les projets"},
     "timeline_nav": {"en": "Timeline", "es": "Cronología", "fr": "Chronologie"},
@@ -858,7 +1021,31 @@ UI_STRINGS = {
     "github_activity_eyebrow": {"en": "Live", "es": "En vivo", "fr": "En direct"},
     "github_activity_heading": {"en": "Recently on GitHub", "es": "Recientemente en GitHub", "fr": "Récemment sur GitHub"},
     "github_activity_updated": {"en": "updated", "es": "actualizado", "fr": "mis à jour"},
+    "leetcode_eyebrow": {"en": "Live", "es": "En vivo", "fr": "En direct"},
+    "leetcode_heading": {"en": "LeetCode", "es": "LeetCode", "fr": "LeetCode"},
+    "leetcode_solved": {"en": "solved", "es": "resueltos", "fr": "résolus"},
+    "leetcode_ranking": {"en": "Ranking", "es": "Clasificación", "fr": "Classement"},
+    "leetcode_easy": {"en": "Easy", "es": "Fácil", "fr": "Facile"},
+    "leetcode_medium": {"en": "Medium", "es": "Medio", "fr": "Moyen"},
+    "leetcode_hard": {"en": "Hard", "es": "Difícil", "fr": "Difficile"},
+    "leetcode_acceptance": {"en": "Acceptance", "es": "Aceptación", "fr": "Taux d’acceptation"},
+    "leetcode_streak": {"en": "Day streak", "es": "Días seguidos", "fr": "Jours d’affilée"},
+    "leetcode_active_days": {"en": "Active days", "es": "Días activos", "fr": "Jours actifs"},
+    "leetcode_languages": {"en": "Languages", "es": "Lenguajes", "fr": "Langages"},
+    "leetcode_activity": {"en": "Activity", "es": "Actividad", "fr": "Activité"},
+    "leetcode_cal_less": {"en": "less", "es": "menos", "fr": "moins"},
+    "leetcode_cal_more": {"en": "more", "es": "más", "fr": "plus"},
 }
+
+# Fußzeilen-Hinweis "automatisch übersetzt", der NUR auf den übersetzten
+# (nicht-deutschen) Sprachversionen sichtbar wird — data-i18n-default bleibt
+# leer, sodass auf Deutsch (und vor dem ersten JS-Sprachwechsel) nichts
+# angezeigt wird. Wird in jede Fußzeile eingesetzt (Projektseiten, index.html,
+# alle-projekte.html, details.html).
+TRANSLATION_NOTE_HTML = (
+    '<span class="footer__translation-note" data-i18n="translation_note" '
+    'data-i18n-default=""></span>'
+)
 
 
 def lang_switch_html() -> str:
@@ -1046,6 +1233,149 @@ def render_github_activity_section(repos: list) -> str:
     )
 
 
+def _leetcode_calendar_cells(calendar: dict, weeks: int = 26) -> str:
+    """GitHub-artiges Beitrags-Raster: `weeks` Spalten (je Woche, Montag oben,
+    Sonntag unten) aus {ISO-Datum: Anzahl}. Fünf Intensitätsstufen über
+    data-l (0-4), relativ zum aktivsten Tag im sichtbaren Fenster skaliert.
+    Tage in der Zukunft (bis Wochenende) bleiben leer, damit das Raster ein
+    sauberes Rechteck ergibt."""
+    today = datetime.date.today()
+    end = today + datetime.timedelta(days=6 - today.weekday())        # Sonntag dieser Woche
+    start = end - datetime.timedelta(days=7 * weeks - 1)              # Montag, `weeks` Wochen früher
+    days = [start + datetime.timedelta(days=i) for i in range((end - start).days + 1)]
+    peak = max((calendar.get(d.isoformat(), 0) for d in days), default=0)
+
+    def level(count: int) -> int:
+        if count <= 0:
+            return 0
+        if peak <= 1:
+            return 2
+        return min(4, 1 + int(count / peak * 3.999))
+
+    cells = []
+    for d in days:
+        iso = d.isoformat()
+        count = calendar.get(iso, 0)
+        future = " leetcode-cal__cell--future" if d > today else ""
+        cells.append(
+            f'<i class="leetcode-cal__cell{future}" data-l="{level(count)}" title="{iso}: {count}"></i>'
+        )
+    return "".join(cells)
+
+
+def render_leetcode_section(stats: dict) -> str:
+    """Baut den LeetCode-Abschnitt der Startseite: eine Karte mit gelöster
+    Gesamtzahl + Ranking, einer segmentierten Verteilungs-Leiste (Anteil
+    Easy/Medium/Hard an den gelösten Aufgaben — immer gefüllt, nie ein leerer
+    Ring), einer Aufschlüsselung je Schwierigkeit, Sekundär-Kennzahlen
+    (Annahmequote, Serie, aktive Tage, Sprachen), Sprach-Chips und einem
+    Aktivitäts-Raster aus dem Einsende-Kalender. Gibt "" zurück (Abschnitt
+    entfällt), wenn keine Stats geladen werden konnten (kein leetcode: in
+    inhalt.txt, Netzwerkfehler, User nicht gefunden)."""
+    if not stats:
+        return ""
+    total = stats["total"]
+    diffs = (
+        ("easy", "leetcode_easy", "Easy", stats["easy"], stats["easy_total"]),
+        ("medium", "leetcode_medium", "Medium", stats["medium"], stats["medium_total"]),
+        ("hard", "leetcode_hard", "Hard", stats["hard"], stats["hard_total"]),
+    )
+
+    # Verteilungs-Leiste: jedes Segment wächst mit der Zahl gelöster Aufgaben
+    # dieser Schwierigkeit. Wer nur Easy gelöst hat, bekommt eine voll grüne
+    # Leiste — bewusst gefüllt statt zweier leerer Kreise.
+    segs = "".join(
+        f'<span class="leetcode-split__seg leetcode-split__seg--{key}" '
+        f'style="flex-grow:{solved}" title="{label}: {solved}"></span>'
+        for key, _i18n, label, solved, _tot in diffs
+        if solved > 0
+    ) or '<span class="leetcode-split__seg leetcode-split__seg--empty" style="flex-grow:1"></span>'
+
+    diff_rows = "".join(
+        '<div class="leetcode-diff">'
+        '<div class="leetcode-diff__head">'
+        f'<span class="leetcode-diff__dot leetcode-diff__dot--{key}"></span>'
+        f'<span class="leetcode-diff__name" data-i18n="{i18n_key}" data-i18n-default="{label}">{label}</span>'
+        '</div>'
+        '<div class="leetcode-diff__body">'
+        f'<span class="leetcode-diff__count">{solved}</span>'
+        f'<span class="leetcode-diff__total">/ {tot:,}</span>'
+        '</div>'
+        '</div>'
+        for key, i18n_key, label, solved, tot in diffs
+    )
+
+    stat_items = []
+    if stats.get("acceptance") is not None:
+        stat_items.append((f'{stats["acceptance"]:.0f}%', "leetcode_acceptance", "Annahmequote"))
+    stat_items.append((str(stats.get("streak", 0)), "leetcode_streak", "Tage in Serie"))
+    stat_items.append((str(stats.get("active_days", 0)), "leetcode_active_days", "Aktive Tage"))
+    languages = stats.get("languages") or []
+    if languages:
+        stat_items.append((str(len(languages)), "leetcode_languages", "Sprachen"))
+    stats_html = "".join(
+        '<div class="leetcode-stat">'
+        f'<span class="leetcode-stat__num">{num}</span>'
+        f'<span class="leetcode-stat__label" data-i18n="{i18n_key}" data-i18n-default="{label}">{label}</span>'
+        '</div>'
+        for num, i18n_key, label in stat_items
+    )
+
+    lang_chips = "".join(
+        f'<span class="leetcode-lang">{html_escape(name)}<b>{count}</b></span>'
+        for name, count in languages[:5]
+    )
+    lang_html = f'<div class="leetcode-langs">{lang_chips}</div>' if lang_chips else ""
+    group_html = (
+        '\n          <div class="leetcode-group">'
+        f'<div class="leetcode-stats">{stats_html}</div>'
+        f'{lang_html}'
+        '</div>'
+    )
+
+    calendar_html = (
+        '\n          <div class="leetcode-cal">'
+        '<div class="leetcode-cal__head">'
+        '<span data-i18n="leetcode_activity" data-i18n-default="Aktivität">Aktivität</span>'
+        '<span class="leetcode-cal__scale">'
+        '<span data-i18n="leetcode_cal_less" data-i18n-default="weniger">weniger</span>'
+        '<i data-l="0"></i><i data-l="1"></i><i data-l="2"></i><i data-l="3"></i><i data-l="4"></i>'
+        '<span data-i18n="leetcode_cal_more" data-i18n-default="mehr">mehr</span>'
+        '</span></div>'
+        f'<div class="leetcode-cal__grid">{_leetcode_calendar_cells(stats.get("calendar") or {})}</div>'
+        '</div>'
+    )
+
+    ranking_html = (
+        f'<span class="leetcode-card__rank"><span data-i18n="leetcode_ranking" '
+        f'data-i18n-default="Ranking">Ranking</span> #{stats["ranking"]:,}</span>'
+        if stats.get("ranking") else ''
+    )
+
+    return (
+        '\n      <section class="section section--tight container reveal" id="leetcode-activity">\n'
+        '        <span class="eyebrow" data-i18n="leetcode_eyebrow" data-i18n-default="Live">Live</span>\n'
+        '        <h2 class="section__title" data-i18n="leetcode_heading" data-i18n-default="LeetCode">LeetCode</h2>\n'
+        f'        <a class="leetcode-card" href="https://leetcode.com/{html_escape(stats["username"])}/" target="_blank" rel="noopener noreferrer">\n'
+        '          <div class="leetcode-card__head">\n'
+        '            <div class="leetcode-card__headline">\n'
+        f'              <span class="leetcode-card__num">{total}</span>\n'
+        '              <span class="leetcode-card__unit">\n'
+        '                <span class="leetcode-card__unit-main" data-i18n="leetcode_solved" data-i18n-default="gelöst">gelöst</span>\n'
+        f'                {ranking_html}\n'
+        '              </span>\n'
+        '            </div>\n'
+        '            <span class="leetcode-card__profile">leetcode.com&nbsp;↗</span>\n'
+        '          </div>\n'
+        f'          <div class="leetcode-split" role="img" aria-label="Verteilung nach Schwierigkeit">{segs}</div>\n'
+        f'          <div class="leetcode-diffs">{diff_rows}</div>'
+        f'{group_html}'
+        f'{calendar_html}\n'
+        '        </a>\n'
+        '      </section>\n      '
+    )
+
+
 # Gemeinsame JS-Logik für den Sprachumschalter — identisch auf jeder Seite, die
 # lang_switch_html() einbindet. Nutzt zwei Attribute:
 # - data-i18n-lang="xx"  auf WRAPPERN mit mehreren Kindern (display:contents,
@@ -1201,7 +1531,7 @@ def load_all_projects() -> list:
         projects.append({
             "slug": d.name,
             "dir": d,
-            "title": meta.get("title", d.name),
+            "title": meta["title"],  # immer der Ordnername
             "tagline": meta.get("tagline", ""),
             "year": meta.get("year", ""),
             "stack": meta.get("stack", []),
@@ -1245,18 +1575,20 @@ def render_timeline_entry(p: dict) -> str:
 
 
 def render_project_card(p: dict) -> str:
-    """Eine Projekt-Karte für alle-projekte.html."""
+    """Eine Projekt-Karte für alle-projekte.html. Die Beschreibung ist
+    p['short_description'] (aus dem 'timeline'-Feld der projekt.txt, fällt
+    auf 'tagline' zurück) — dieselbe Quelle wie beim Zeitstrahl-Eintrag."""
     stack_li = "".join(f"<li>{html_escape(s)}</li>" for s in p["stack"])
     year_role = html_escape(f"{p['year']} · {p['role']}".strip(" ·"))
-    # Durchsuchbarer Text (Titel/Tagline/Stack) fürs clientseitige Live-Suchfeld.
-    search_text = html_escape(f"{p['title']} {p['tagline']} {' '.join(p['stack'])}".lower())
+    # Durchsuchbarer Text (Titel/Beschreibung/Stack) fürs clientseitige Live-Suchfeld.
+    search_text = html_escape(f"{p['title']} {p['short_description']} {' '.join(p['stack'])}".lower())
     return (
         f'    <li>\n'
         f'      <a class="card reveal" href="projekte/{p["slug"]}/index.html" data-search="{search_text}">\n'
         f'        <div class="card__body">\n'
         f'          <div class="card__year">{year_role}</div>\n'
         f'          <h3 class="card__title">{html_escape(p["title"])}</h3>\n'
-        f'          <p class="card__tagline">{i18n_span_variants(p["tagline"])}</p>\n'
+        f'          <p class="card__tagline">{i18n_span_variants(p["short_description"])}</p>\n'
         f'          <ul class="card__stack">{stack_li}</ul>\n'
         f'        </div>\n'
         f'        <span class="card__arrow" aria-hidden="true">↗</span>\n'
@@ -1286,6 +1618,7 @@ def update_alle_projekte() -> None:
         "const I18N = " + i18n_json([
             "nav_home", "brand_portfolio", "timeline_nav", "all_projects_heading",
             "all_work_eyebrow", "footer_text", "search_placeholder", "search_empty",
+            "translation_note",
         ]) + ";",
     )
     if i18n_src is not None:
@@ -1419,6 +1752,8 @@ def update_portfolio_content() -> None:
     github_path = urllib.parse.urlparse(github).path.strip("/") if github else ""
     github_username = github_path.split("/")[0] if github_path else ""
     github_activity_section = render_github_activity_section(fetch_github_repos(github_username))
+    leetcode_username = kv.get("leetcode", "").strip()
+    leetcode_section = render_leetcode_section(fetch_leetcode_stats(leetcode_username))
 
     src = PORTFOLIO.read_text(encoding="utf-8")
     missing = []
@@ -1437,6 +1772,7 @@ def update_portfolio_content() -> None:
         ("CONTACT_TEXT", kontakt_text_html),
         ("CURRENT_PROJECT", current_project_section),
         ("GITHUB_ACTIVITY", github_activity_section),
+        ("LEETCODE_ACTIVITY", leetcode_section),
     ):
         new_src = replace_marker_block(src, marker, inner)
         if new_src is None:
@@ -1455,6 +1791,11 @@ def update_portfolio_content() -> None:
             "github_label", "linkedin_label", "email_label", "footer_text",
             "current_project_eyebrow", "current_project_link",
             "github_activity_eyebrow", "github_activity_heading", "github_activity_updated",
+            "leetcode_eyebrow", "leetcode_heading", "leetcode_solved", "leetcode_ranking",
+            "leetcode_easy", "leetcode_medium", "leetcode_hard",
+            "leetcode_acceptance", "leetcode_streak", "leetcode_active_days",
+            "leetcode_languages", "leetcode_activity", "leetcode_cal_less", "leetcode_cal_more",
+            "translation_note",
         ]) + ";",
     )
     if new_src is None:

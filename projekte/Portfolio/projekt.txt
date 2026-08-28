@@ -1,16 +1,10 @@
 # Vorlage für ein neues Projekt — diesen ganzen Ordner "_vorlage" kopieren,
 # umbenennen (z.B. "Mein-Projekt") und in der Kopie diese Datei ausfüllen.
-# Der ORDNERNAME ist automatisch der angezeigte Projekt-Titel (überall gleich:
-# Startseite, Übersicht, Projektseite, 3D-Viewer) — ein "title:"-Feld gibt es
-# nicht mehr. Titel ändern = Ordner umbenennen.
 # Ordner mit "_" am Anfang werden von update_website.py ignoriert, die Kopie
 # mit normalem Namen taucht danach automatisch auf index.html und
 # alle-projekte.html auf, sobald "python3 update_website.py" läuft.
-# Bilder UND Videos kommen unten in den Abschnitt "## Bilder", je Zeile im
-# Format "dateiname | Alt-Text | Bildunterschrift" (getrennt durch senkrechte
-# Striche); die Datei muss im bilder/-Ordner dieses Projekts liegen. Endet der
-# Dateiname auf .mp4/.webm/.mov/.m4v/.ogv, wird statt eines Bildes automatisch
-# ein abspielbarer Video-Player eingebettet (mit Steuerung, stummgeschaltet).
+# Bilder unten im Format "dateiname.png Alt-Text Bildunterschrift", getrennt
+# durch senkrechte Striche; die Datei muss im bilder/-Ordner dieses Projekts liegen.
 #
 # 3D-Live-Ansicht: STL/OBJ/DAE/URDF-Dateien in einen "modelle/"-Ordner in diesem
 # Projektordner legen (Ordner ggf. selbst anlegen) — beim nächsten
@@ -19,7 +13,7 @@
 # bettet die Modelle darin ein (kein Upload zur Laufzeit, kein Server, nichts
 # manuell kopieren). Danach unten bei "3d-viewer:" den Pfad
 # "3d-viewer/3d-viewer.html" eintragen, damit der Button erscheint.
-# Überschrift/Text im Viewer kommen automatisch von Ordnername/tagline — für
+# Überschrift/Text im Viewer kommen automatisch von title/tagline hier — für
 # eigenen Wortlaut optional viewer_titel:/viewer_text: ergänzen.
 #
 # Zusätzliche Buttons neben Source/Live/3D-Ansicht: weiter unten im Abschnitt
@@ -85,8 +79,4 @@ Optionaler vierter Punkt — frei benennbar (z.B. "Roadmap", "Architektur",
 # Zum Aktivieren einfach das "# " am Zeilenanfang entfernen.
 
 ## Bilder
-# Hier kommen Bilder ODER Videos rein (beide Dateien in den bilder/-Ordner).
-# Video-Endungen .mp4/.webm/.mov/.m4v/.ogv werden automatisch als Player
-# eingebettet statt als Bild — Format ist identisch:
 beispiel.png | Alt-Text | Bildunterschrift
-demo.mp4 | Worum geht es im Clip | Bildunterschrift unter dem Video

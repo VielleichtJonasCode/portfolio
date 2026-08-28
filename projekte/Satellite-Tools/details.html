@@ -379,6 +379,18 @@ pre code {
   color: var(--fg-muted);
   font-size: 0.78rem;
 }
+.footer__text-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.footer__translation-note {
+  font-size: 0.78rem;
+  font-style: italic;
+}
+.footer__translation-note:empty {
+  display: none;
+}
 
 /* ===== Reveal animation ===== */
 .reveal {
@@ -637,13 +649,16 @@ html[data-theme='dark'] .reveal { opacity: 1 !important; transform: none !import
 
   <footer class="site-footer">
     <div class="container">
-      <span data-i18n="footer_text" data-i18n-default="© 2026 — gebaut mit Vite, HTML &amp; CSS.">© 2026 — gebaut mit Vite, HTML &amp; CSS.</span>
+      <div class="footer__text-group">
+        <span data-i18n="footer_text" data-i18n-default="© 2026 — gebaut mit Vite, HTML &amp; CSS.">© 2026 — gebaut mit Vite, HTML &amp; CSS.</span>
+        <span class="footer__translation-note" data-i18n="translation_note" data-i18n-default=""></span>
+      </div>
     </div>
   </footer>
 
   <script>
     <!-- I18N_SCRIPT_START -->
-const I18N = {"en": {"nav_home": "Home", "brand_portfolio": "Portfolio", "back_to_project": "Back to project", "footer_text": "© 2026 — built with HTML & CSS."}, "es": {"nav_home": "Inicio", "brand_portfolio": "Portafolio", "back_to_project": "Volver al proyecto", "footer_text": "© 2026 — construido con HTML y CSS."}, "fr": {"nav_home": "Accueil", "brand_portfolio": "Portfolio", "back_to_project": "Retour au projet", "footer_text": "© 2026 — conçu avec HTML et CSS."}};
+const I18N = {"en": {"nav_home": "Home", "brand_portfolio": "Portfolio", "back_to_project": "Back to project", "footer_text": "© 2026 — built with HTML & CSS.", "translation_note": "This page was translated automatically using AI."}, "es": {"nav_home": "Inicio", "brand_portfolio": "Portafolio", "back_to_project": "Volver al proyecto", "footer_text": "© 2026 — construido con HTML y CSS.", "translation_note": "Esta página fue traducida automáticamente con IA."}, "fr": {"nav_home": "Accueil", "brand_portfolio": "Portfolio", "back_to_project": "Retour au projet", "footer_text": "© 2026 — conçu avec HTML et CSS.", "translation_note": "Cette page a été traduite automatiquement par IA."}};
 <!-- I18N_SCRIPT_END -->
   </script>
 
