@@ -665,6 +665,10 @@ def load_project(project_dir: Path) -> dict:
 
 
 VIDEO_EXTENSIONS = {"mp4", "webm", "mov", "m4v", "ogv"}
+# Vom 3D-Viewer tatsächlich ladbare Modellformate (STLLoader/OBJLoader/
+# ColladaLoader). Nur Dateien mit dieser Endung zählen als "echtes Modell" —
+# ein README.txt o.ä. im modelle/-Ordner löst also KEINEN Viewer aus.
+MODEL_EXTENSIONS = {".stl", ".obj", ".dae", ".urdf"}
 
 
 def render_gallery(images: list) -> str:
@@ -674,7 +678,8 @@ def render_gallery(images: list) -> str:
     Einträge mit einer Video-Dateiendung (mp4/webm/mov/m4v/ogv) werden als
     abspielbares <video controls> gerendert, alle anderen als <img>. Die
     Bildunterschrift (das 3. Feld je Zeile im ## Bilder-Abschnitt) erscheint —
-    sofern gesetzt — unter dem Bild bzw. Video."""
+    sofern gesetzt — unter dem Bild bzw. Video und wird wie Tagline und
+    Beschreibung automatisch mitübersetzt (data-i18n-lang-el-Spans je Sprache)."""
     if not images:
         return ""
     items = []
@@ -682,7 +687,7 @@ def render_gallery(images: list) -> str:
         raw_file = img.get("file", "")
         file = html_escape(raw_file)
         alt = html_escape(img.get("alt", ""))
-        caption = html_escape(img.get("caption", ""))
+        raw_caption = img.get("caption", "")
         ext = raw_file.rsplit(".", 1)[-1].lower() if "." in raw_file else ""
 
         if ext in VIDEO_EXTENSIONS:
@@ -693,7 +698,10 @@ def render_gallery(images: list) -> str:
         else:
             media = f'<img class="gallery__image" src="bilder/{file}" alt="{alt}" loading="lazy">'
 
-        caption_html = f'<div class="gallery__caption">{caption}</div>' if caption else ''
+        caption_html = (
+            f'<div class="gallery__caption">{i18n_span_variants(raw_caption)}</div>'
+            if raw_caption else ''
+        )
         items.append(
             f'<li class="gallery__item">'
             f'<div class="gallery__media">{media}</div>'
@@ -1023,6 +1031,11 @@ UI_STRINGS = {
     "github_activity_updated": {"en": "updated", "es": "actualizado", "fr": "mis à jour"},
     "leetcode_eyebrow": {"en": "Live", "es": "En vivo", "fr": "En direct"},
     "leetcode_heading": {"en": "LeetCode", "es": "LeetCode", "fr": "LeetCode"},
+    "leetcode_intro": {
+        "en": "LeetCode is a practice platform for algorithm and data-structure problems. Solving them regularly builds structured problem-solving — the foundation for technical interviews and clean code.",
+        "es": "LeetCode es una plataforma de práctica con problemas de algoritmos y estructuras de datos. Resolverlos con regularidad entrena la resolución estructurada de problemas: la base para entrevistas técnicas y código limpio.",
+        "fr": "LeetCode est une plateforme d'entraînement aux problèmes d'algorithmes et de structures de données. Les résoudre régulièrement développe une résolution de problèmes structurée — la base pour les entretiens techniques et un code propre.",
+    },
     "leetcode_solved": {"en": "solved", "es": "resueltos", "fr": "résolus"},
     "leetcode_ranking": {"en": "Ranking", "es": "Clasificación", "fr": "Classement"},
     "leetcode_easy": {"en": "Easy", "es": "Fácil", "fr": "Facile"},
@@ -1233,6 +1246,15 @@ def render_github_activity_section(repos: list) -> str:
     )
 
 
+# Kurzer Erklärtext über dem LeetCode-Abschnitt (deutsche Quelle; en/es/fr
+# stehen als "leetcode_intro" in UI_STRINGS und werden per data-i18n umgeschaltet).
+LEETCODE_INTRO_DE = (
+    "LeetCode ist eine Übungsplattform für Algorithmen- und Datenstruktur-Aufgaben. "
+    "Regelmäßiges Lösen trainiert strukturiertes Problemlösen — die Basis für "
+    "technische Interviews und sauberen Code."
+)
+
+
 def _leetcode_calendar_cells(calendar: dict, weeks: int = 26) -> str:
     """GitHub-artiges Beitrags-Raster: `weeks` Spalten (je Woche, Montag oben,
     Sonntag unten) aus {ISO-Datum: Anzahl}. Fünf Intensitätsstufen über
@@ -1356,6 +1378,7 @@ def render_leetcode_section(stats: dict) -> str:
         '\n      <section class="section section--tight container reveal" id="leetcode-activity">\n'
         '        <span class="eyebrow" data-i18n="leetcode_eyebrow" data-i18n-default="Live">Live</span>\n'
         '        <h2 class="section__title" data-i18n="leetcode_heading" data-i18n-default="LeetCode">LeetCode</h2>\n'
+        f'        <p class="muted" style="max-width: 60ch; margin-bottom: 24px;" data-i18n="leetcode_intro" data-i18n-default="{LEETCODE_INTRO_DE}">{LEETCODE_INTRO_DE}</p>\n'
         f'        <a class="leetcode-card" href="https://leetcode.com/{html_escape(stats["username"])}/" target="_blank" rel="noopener noreferrer">\n'
         '          <div class="leetcode-card__head">\n'
         '            <div class="leetcode-card__headline">\n'
@@ -1428,12 +1451,13 @@ def js_string(s: str) -> str:
 
 
 def bake_3d_viewer_models(viewer_dir: Path, models_dir: Path | None = None) -> int:
-    """Liest alle Dateien aus models_dir (Standard: viewer_dir/modelle) und bettet
-    sie base64-codiert in viewer_dir/3d-viewer.html ein (zwischen den
-    MODELS_START/END-Markern). Dadurch braucht der Viewer zur Laufzeit weder
-    Server noch Datei-Upload — die Modelldaten stecken schon fest im HTML.
-    Gibt -1 zurück, wenn die 3d-viewer.html keine Marker hat, sonst die Anzahl
-    eingebetteter Dateien."""
+    """Liest die Modell-Dateien aus models_dir (Standard: viewer_dir/modelle) und
+    bettet sie base64-codiert in viewer_dir/3d-viewer.html ein (zwischen den
+    MODELS_START/END-Markern). Nur Dateien mit einer Modell-Endung
+    (MODEL_EXTENSIONS) werden eingebettet — README.txt & Co. werden ignoriert.
+    Dadurch braucht der Viewer zur Laufzeit weder Server noch Datei-Upload — die
+    Modelldaten stecken schon fest im HTML. Gibt -1 zurück, wenn die
+    3d-viewer.html keine Marker hat, sonst die Anzahl eingebetteter Dateien."""
     viewer_html = viewer_dir / "3d-viewer.html"
     if not viewer_html.exists():
         return -1
@@ -1442,7 +1466,7 @@ def bake_3d_viewer_models(viewer_dir: Path, models_dir: Path | None = None) -> i
     entries = []
     if modelle_dir.exists():
         for f in sorted(modelle_dir.iterdir()):
-            if not f.is_file():
+            if not f.is_file() or f.suffix.lower() not in MODEL_EXTENSIONS:
                 continue
             data = base64.b64encode(f.read_bytes()).decode("ascii")
             entries.append(f'{{ name: {js_string(f.name)}, data: {js_string(data)} }}')
@@ -1473,20 +1497,32 @@ def apply_viewer_content(viewer_dir: Path, titel: str, text: str) -> bool:
 
 
 def sync_project_3d_viewers() -> None:
-    """Kopiert für jedes Projekt mit eigenem modelle/-Ordner eine 3D-Viewer-Kopie
-    (HTML + vendor/) aus der Vorlage in "portfolio vorlagen/3d-viewer/" (liegt
-    außerhalb dieses Repos) nach projekte/<name>/3d-viewer/, bettet die Modelle
-    aus dessen modelle/-Ordner ein und setzt Überschrift/Text aus
-    viewer_titel/viewer_text in der projekt.txt (fällt auf title/tagline
-    zurück, wenn die nicht gesetzt sind). So bekommt jedes Projekt seinen
-    eigenen, in sich geschlossenen Viewer, der komplett im Repo landet."""
+    """Baut pro Projekt eine eigene 3D-Viewer-Kopie (HTML + vendor/) aus der
+    Vorlage in "portfolio vorlagen/3d-viewer/" nach projekte/<name>/3d-viewer/,
+    bettet die Modelle ein und setzt Überschrift/Text aus viewer_titel/
+    viewer_text (fällt auf Ordnername/tagline zurück).
+
+    Das passiert NUR, wenn beides zutrifft — sonst wird das Projekt
+    übersprungen (und ein evtl. vorhandener 3d-viewer/-Ordner entfernt):
+      1. die '3d-viewer:'-Zeile der projekt.txt enthält einen Pfad, und
+      2. im modelle/-Ordner liegt mindestens eine echte Modell-Datei
+         (Endung in MODEL_EXTENSIONS) — ein bloßes README.txt zählt nicht."""
     if not VIEWER_SOURCE.exists():
         return
     for project_dir in list_projects():
-        modelle_dir = project_dir / "modelle"
-        if not modelle_dir.exists() or not any(modelle_dir.iterdir()):
-            continue
         target = project_dir / "3d-viewer"
+        pf = project_dir / PROJECT_FILE_NAME
+        kv = parse_kv_block(pf.read_text(encoding="utf-8")) if pf.exists() else {}
+        modelle_dir = project_dir / "modelle"
+        model_files = sorted(
+            f for f in modelle_dir.iterdir()
+            if f.is_file() and f.suffix.lower() in MODEL_EXTENSIONS
+        ) if modelle_dir.is_dir() else []
+        if not kv.get("3d-viewer", "").strip() or not model_files:
+            if target.exists():
+                shutil.rmtree(target)
+                print(f"  · {project_dir.name}/3d-viewer/ entfernt (keine Modelle bzw. 3d-viewer:-Zeile leer)")
+            continue
         target.mkdir(exist_ok=True)
         viewer_html = (VIEWER_SOURCE / "3d-viewer.html").read_text(encoding="utf-8")
         # Rücklink anpassen: projekte/<name>/3d-viewer/ liegt drei Ebenen unter
@@ -1503,8 +1539,6 @@ def sync_project_3d_viewers() -> None:
         count = bake_3d_viewer_models(target, models_dir=modelle_dir)
 
         meta = load_project(project_dir)
-        kv = parse_kv_block((project_dir / PROJECT_FILE_NAME).read_text(encoding="utf-8")) \
-            if (project_dir / PROJECT_FILE_NAME).exists() else {}
         titel = kv.get("viewer_titel") or meta.get("title", project_dir.name)
         text = kv.get("viewer_text") or meta.get("tagline", "")
         apply_viewer_content(target, titel, text)
@@ -1791,8 +1825,8 @@ def update_portfolio_content() -> None:
             "github_label", "linkedin_label", "email_label", "footer_text",
             "current_project_eyebrow", "current_project_link",
             "github_activity_eyebrow", "github_activity_heading", "github_activity_updated",
-            "leetcode_eyebrow", "leetcode_heading", "leetcode_solved", "leetcode_ranking",
-            "leetcode_easy", "leetcode_medium", "leetcode_hard",
+            "leetcode_eyebrow", "leetcode_heading", "leetcode_intro", "leetcode_solved",
+            "leetcode_ranking", "leetcode_easy", "leetcode_medium", "leetcode_hard",
             "leetcode_acceptance", "leetcode_streak", "leetcode_active_days",
             "leetcode_languages", "leetcode_activity", "leetcode_cal_less", "leetcode_cal_more",
             "translation_note",
@@ -1842,19 +1876,11 @@ def main() -> None:
     update_portfolio_timeline()
     update_alle_projekte()
 
-    if VIEWER_SOURCE.exists():
-        print("\n3D-Viewer:")
-        count = bake_3d_viewer_models(VIEWER_SOURCE)
-        viewer_content_file = VIEWER_SOURCE / "inhalt.txt"
-        if viewer_content_file.exists():
-            kv = parse_kv_block(viewer_content_file.read_text(encoding="utf-8"))
-            apply_viewer_content(
-                VIEWER_SOURCE,
-                kv.get("titel", "3D-Modell-Viewer"),
-                kv.get("text", ""),
-            )
-        print(f"  ✓ portfolio vorlagen/3d-viewer/3d-viewer.html ({count} Modell(e) eingebettet)")
-        sync_project_3d_viewers()
+    # 3D-Viewer NUR für Projekte, die beide Bedingungen erfüllen (3d-viewer:-Zeile
+    # gesetzt + echte Modell-Datei in modelle/). Die externe Vorlage
+    # "portfolio vorlagen/3d-viewer/" bleibt ein reines Skelett — sie wird pro
+    # Projekt kopiert und die Modelle in die KOPIE gebacken, nicht in die Vorlage.
+    sync_project_3d_viewers()
 
     save_translation_cache()
 

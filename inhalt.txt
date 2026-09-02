@@ -25,9 +25,11 @@ zeitstrahl_titel: Zeitstrahl
 ## Zeitstrahl
 Mindstorm-Rubik
 Robo-AG
+B-Braun-Praktikum
 IT-Class
 Wasserrakete
-Satellite-Tools
+DLR-AI-Praktikum
+
 
 
 

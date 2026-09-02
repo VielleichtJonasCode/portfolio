@@ -36,11 +36,11 @@
 # "Learnings", "Architektur" — was auch immer passt). Fehlt eine der drei
 # Pflicht-Überschriften, gibt update_website.py beim Bauen nur eine Warnung
 # aus (bricht nicht ab) — so bleibt die Struktur überall konsistent.
-tagline: Kurzer Ein-Satz-Teaser für Karten und Zeitstrahl.
-role: Solo / Rolle
+tagline: In der Robotik-AG hat man die Möglichkeit im Namen der Schule an linien-folgenden Roboterfahrzeugen zu arbeiten.
+role: Schüler
 year: 2021
-stack: Sprache/Framework, Tool, Tool
-repo: https://github.com/
+stack: Arduino, Servos, Sensoren, Löten, Schaltplan
+repo: 
 live:
 3d-viewer:
 featured: false
@@ -49,34 +49,25 @@ featured: false
 # wird — dafür muss dieses Projekt in inhalt.txt unter "## Zeitstrahl"
 # eingetragen sein (Titel | Jahr | Projektordner). Bleibt "timeline" leer,
 # wird stattdessen "tagline" oben verwendet.
-timeline: Kurzbeschreibung für den Zeitstrahl auf der Startseite (1-2 Sätze).
+timeline: In der Robotik-AG hat man die Möglichkeit im Namen der Schule an linien-folgenden Roboterfahrzeugen zu arbeiten.
 
 ### Ziel
-Worum ging es in dem Projekt? Was war die Ausgangslage oder das Problem,
-das gelöst werden sollte? 2-4 Sätze.
+Das Ziel der AG ist es, jungen Schülerinnen und Schülern einen spannenden und praxisnahen Einblick in die Welt der Informatik zu geben.
+Als konkretes Ziel hat sich die AG vorgenommen, am RoboCup Junior teilzunehmen und dabei erfolgreich abzuschneiden.
 
 ### Ablauf
-Wie bist du vorgegangen? Technischer Ansatz, wichtige Entscheidungen,
-Architektur.
-
-- Wichtiger Schritt/Entscheidung 1
-- Wichtiger Schritt/Entscheidung 2
-- Wichtiger Schritt/Entscheidung 3
+Um dieses Ziel zu erreichen, findet einmal wöchentlich ein Treffen im Informatikbereich der Schule statt. Daran nehmen nicht nur Schülerinnen und Schüler teil, sondern auch Lehrkräfte, Hilfskräfte und Studierende, die ihr Wissen an die Schüler weitergeben.
+Dabei wird strukturiert gearbeitet und vor allem praktisch geübt.
 
 ### Ergebnis
-Was ist dabei rausgekommen? Features, Zahlen, ein Beispiel.
-
-- Feature/Ergebnis 1
-- Feature/Ergebnis 2
-
-### Learnings
-Optionaler vierter Punkt — frei benennbar (z.B. "Roadmap", "Architektur",
-"Learnings"). Kann auch komplett weggelassen werden.
+Nach ca. 1,5 Jahren aktiver Mitgliedschaft musste ich die Robotik-AG aus Zeitgründen leider verlassen. Die dort erworbenen Grundkenntnisse und die Lernmotivation in den Bereichen IT und Robotik habe ich mir jedoch bewahrt.
 
 ## Links
 # Zeilen, die mit "#" beginnen, werden ignoriert (Kommentar/Test) — so:
 # Testlink | https://example.com | 200 | 48
 # Zum Aktivieren einfach das "# " am Zeilenanfang entfernen.
+Robo-Cup-Junior | https://robocup.de/junior | 200 | 48 
 
 ## Bilder
-beispiel.png | Alt-Text | Bildunterschrift
+# beispiel.png | Alt-Text | Bildunterschrift
+Robotik-AG.png | Alt-Text | Linien-Roboter

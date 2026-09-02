@@ -12,13 +12,13 @@
 # Dateiname auf .mp4/.webm/.mov/.m4v/.ogv, wird statt eines Bildes automatisch
 # ein abspielbarer Video-Player eingebettet (mit Steuerung, stummgeschaltet).
 #
-# 3D-Live-Ansicht: STL/OBJ/DAE/URDF-Dateien in einen "modelle/"-Ordner in diesem
-# Projektordner legen (Ordner ggf. selbst anlegen) — beim nächsten
-# "python3 update_website.py" kopiert das Skript AUTOMATISCH den Viewer aus
-# "portfolio vorlagen/3d-viewer/" nach 3d-viewer/ in diesem Projektordner und
-# bettet die Modelle darin ein (kein Upload zur Laufzeit, kein Server, nichts
-# manuell kopieren). Danach unten bei "3d-viewer:" den Pfad
-# "3d-viewer/3d-viewer.html" eintragen, damit der Button erscheint.
+# 3D-Live-Ansicht (optional, standardmäßig AUS): wird nur gebaut, wenn BEIDES
+# zutrifft — (1) unten bei "3d-viewer:" steht der Pfad "3d-viewer/3d-viewer.html"
+# UND (2) im Projektordner liegt ein Ordner "modelle/" mit mindestens einer
+# echten Modell-Datei (.stl / .obj / .dae / .urdf). Ein leeres modelle/ oder nur
+# ein README darin löst nichts aus. Sind beide Bedingungen erfüllt, kopiert
+# "python3 update_website.py" den Viewer aus "portfolio vorlagen/3d-viewer/"
+# nach 3d-viewer/ und bettet die Modelle fest ein (kein Server, kein Upload).
 # Überschrift/Text im Viewer kommen automatisch von Ordnername/tagline — für
 # eigenen Wortlaut optional viewer_titel:/viewer_text: ergänzen.
 #
@@ -87,6 +87,7 @@ Optionaler vierter Punkt — frei benennbar (z.B. "Roadmap", "Architektur",
 ## Bilder
 # Hier kommen Bilder ODER Videos rein (beide Dateien in den bilder/-Ordner).
 # Video-Endungen .mp4/.webm/.mov/.m4v/.ogv werden automatisch als Player
-# eingebettet statt als Bild — Format ist identisch:
+# eingebettet statt als Bild — Format ist identisch. Die Bildunterschrift
+# (3. Feld) wird automatisch mitübersetzt, wie Tagline und Beschreibung.
 beispiel.png | Alt-Text | Bildunterschrift
 demo.mp4 | Worum geht es im Clip | Bildunterschrift unter dem Video
